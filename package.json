@@ -1,6 +1,6 @@
 {
   "name": "native-access-control",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Zero-overhead, type-safe Role & Attribute-Based Access Control (RBAC/ABAC) for React, React Native, Node.js, and TypeScript.",
   "license": "MIT",
   "main": "dist/index.js",
