@@ -373,69 +373,32 @@ const safeProperty = filterRecord(property, {
 
 ---
 
-### 12. Supabase & PostgreSQL Adapters
+### 12. Database, ORM & Framework Adapters
 
-#### Supabase (`applySupabaseScope` & `toSupabaseMatch`)
-Apply scope and ownership filters directly to a Supabase query builder:
+Zero-dependency adapters in `native-access-control/adapters`:
 
-```ts
-import { applySupabaseScope, toSupabaseMatch } from 'native-access-control/adapters';
-
-// Pattern A: Chain directly onto query
-let query = supabase.from('receipts').select('*');
-query = applySupabaseScope(query, {
-  scopeId: activeOrgId,
-  scopeKey: 'org_id',
-  userId: currentUserId,
-  userKey: 'author_id',
-  isRestrictedRole: !isAdmin,
-});
-const { data } = await query;
-
-// Pattern B: Use with .match()
-const filter = toSupabaseMatch({
-  scopeId: activeOrgId,
-  scopeKey: 'org_id',
-  userId: currentUserId,
-  userKey: 'author_id',
-  isRestrictedRole: !isAdmin,
-});
-const { data: matched } = await supabase.from('receipts').select().match(filter);
-```
-
-#### PostgreSQL Parameterized SQL (`toPostgresWhere`)
-Generate parameterized SQL `$1, $2` to prevent SQL injection in `pg`, `postgres.js`, or raw queries:
+- **Drizzle ORM (`toDrizzleWhere`)**: Generate composite conditions combining partition scope and user ownership.
+- **Prisma Client (`toPrismaWhere`, `createPrismaScopeExtension`)**: Query where clause builder and client extension for auto-scoping.
+- **MongoDB / Mongoose (`toMongoFilter`)**: Generate MongoDB query objects.
+- **Supabase (`applySupabaseScope`, `toSupabaseMatch`)**: Direct query builder chaining and match filters.
+- **PostgreSQL (`toPostgresWhere`, `generateRlsPolicy`)**: Parameterized `$1, $2` SQL and automated RLS SQL policy generation.
+- **Next.js (`protectAction`, `protectRouteHandler`)**: Guard wrappers for App Router Server Actions and route handlers.
+- **Express / Connect (`expressGuard`)**: Middleware with automatic 403 JSON responses.
+- **Hono (`honoGuard`)**: Edge-ready middleware for Cloudflare Workers, Bun, and Node.
+- **tRPC (`createTrpcGuard`)**: Middleware for procedure authorization.
 
 ```ts
-import { toPostgresWhere } from 'native-access-control/adapters';
-
-const { clause, params } = toPostgresWhere({
-  scopeId: activeWorkspaceId,
-  scopeKey: 'workspace_id',
-  userId: currentUserId,
-  userKey: 'author_id',
-  isRestrictedRole: !isAdmin,
-  startIndex: 1, // $1, $2
-});
-
-// clause: "WHERE workspace_id = $1 AND author_id = $2"
-// params: ['ws_123', 'usr_456']
-
-const res = await db.query(`SELECT * FROM documents ${clause}`, params);
+import {
+  toDrizzleWhere,
+  toPrismaWhere,
+  createPrismaScopeExtension,
+  protectAction,
+  expressGuard,
+  honoGuard,
+  createTrpcGuard,
+} from 'native-access-control/adapters';
 ```
 
-#### Postgres / Supabase RLS Policy Generator (`generateRlsPolicy`)
-Generate standard PostgreSQL Row-Level Security (RLS) SQL policies:
-
-```ts
-import { generateRlsPolicy } from 'native-access-control/adapters';
-
-const sql = generateRlsPolicy({
-  table: 'contracts',
-  scopeKey: 'business_id',
-  userKey: 'user_id',
-});
-```
 
 ---
 

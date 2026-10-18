@@ -10,7 +10,8 @@
 
 - **Frameworks & Databases**
   - [React & React Native](guide/react-and-mobile.md)
-  - [Supabase & PostgreSQL Adapters](guide/database-adapters.md)
+  - [Database & ORM Adapters](guide/database-adapters.md)
+  - [Server & API Adapters](guide/server-and-api-adapters.md)
 
 - **Reference**
   - [API Reference](api/reference.md)

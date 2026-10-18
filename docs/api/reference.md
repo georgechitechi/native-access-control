@@ -151,6 +151,16 @@ Higher-Order Component returning `(WrappedComponent) => React.FC`.
 
 ## Adapters (`native-access-control/adapters`)
 
+### Drizzle ORM
+- `toDrizzleWhere(table, options, operators)`: Generates composite Drizzle conditions combining partition scope and ownership.
+
+### Prisma
+- `toPrismaWhere(options)`: Generates Prisma `where` clause object.
+- `createPrismaScopeExtension(config)`: Prisma Client extension auto-injecting scope filters on queries.
+
+### MongoDB & Mongoose
+- `toMongoFilter(options)`: Generates Mongo/Mongoose filter dictionary.
+
 ### Supabase
 - `applySupabaseScope(query, options)`: Chains `.eq()` filters onto a Supabase query builder.
 - `toSupabaseMatch(options)`: Returns an object formatted for Supabase `.match()`.
@@ -158,3 +168,17 @@ Higher-Order Component returning `(WrappedComponent) => React.FC`.
 ### PostgreSQL
 - `toPostgresWhere(options, startIndex?)`: Returns `{ clause: string, values: string[] }`.
 - `generateRlsPolicy(options)`: Returns standard PostgreSQL `ALTER TABLE ... ENABLE ROW LEVEL SECURITY; CREATE POLICY ...` SQL.
+
+### Next.js (App Router)
+- `protectAction(evaluator, action, fn, getContext?)`: Guard wrapper for Next.js Server Actions.
+- `protectRouteHandler(getEvaluator, action, handler)`: Guard wrapper for App Router API route handlers (`GET`, `POST`, `DELETE`).
+
+### Express & Connect
+- `expressGuard(evaluator, action, options?)`: Middleware returning 403 on denied access.
+
+### Hono (Edge / Bun / Cloudflare)
+- `honoGuard(evaluator, action, options?)`: Middleware returning 403 JSON responses on denied access.
+
+### tRPC
+- `createTrpcGuard(evaluator, action, options?)`: Middleware for tRPC procedure chains.
+

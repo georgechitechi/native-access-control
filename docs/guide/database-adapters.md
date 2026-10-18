@@ -1,16 +1,121 @@
-# Database Adapters
+# Database & ORM Adapters
 
-`native-access-control/adapters` provides zero-overhead helpers for integrating access scoping with **Supabase** and **PostgreSQL**.
+`native-access-control/adapters` provides zero-overhead helpers for database query scoping, ORM integration, and Row-Level Security (RLS) generation with **zero external dependencies**.
 
 ---
 
-## Supabase Adapter
+## 1. Drizzle ORM
+
+Integrate partition and ownership scoping directly into your Drizzle `select()`, `update()`, and `delete()` queries.
+
+### `toDrizzleWhere()`
+
+```typescript
+import { toDrizzleWhere } from 'native-access-control/adapters';
+import { eq, and } from 'drizzle-orm';
+import { posts } from './schema';
+import { db } from './db';
+
+export async function getPosts(userContext: { orgId: string; userId: string; isAdmin: boolean }) {
+  const where = toDrizzleWhere(
+    posts,
+    {
+      scopeId: userContext.orgId,
+      scopeKey: 'workspaceId',
+      userId: userContext.userId,
+      userKey: 'authorId',
+      isRestrictedRole: !userContext.isAdmin,
+    },
+    { eq, and }
+  );
+
+  return db.select().from(posts).where(where);
+}
+```
+
+---
+
+## 2. Prisma Client
+
+### A. Filter Object (`toPrismaWhere`)
+
+Generates a typed `where` clause filter object:
+
+```typescript
+import { toPrismaWhere } from 'native-access-control/adapters';
+import { prisma } from './prisma';
+
+const where = toPrismaWhere({
+  scopeId: activeOrgId,
+  scopeKey: 'organizationId',
+  userId: activeUserId,
+  userKey: 'authorId',
+  isRestrictedRole: !currentUser.isAdmin,
+});
+
+const documents = await prisma.document.findMany({ where });
+```
+
+### B. Prisma Client Extension (`createPrismaScopeExtension`)
+
+Automatically inject partition scoping into every query across specified models:
+
+```typescript
+import { PrismaClient } from '@prisma/client';
+import { createPrismaScopeExtension } from 'native-access-control/adapters';
+
+export function getScopedPrisma(session: { orgId: string; userId: string }) {
+  const basePrisma = new PrismaClient();
+
+  return basePrisma.$extends(
+    createPrismaScopeExtension({
+      scopeId: session.orgId,
+      scopeKey: 'orgId',
+      userId: session.userId,
+      userKey: 'authorId',
+      models: ['Document', 'Invoice', 'Ticket'],
+    })
+  );
+}
+
+// In your application logic:
+const prisma = getScopedPrisma(session);
+
+// Automatically scoped with { orgId: session.orgId, authorId: session.userId }
+const docs = await prisma.document.findMany();
+```
+
+---
+
+## 3. MongoDB & Mongoose
+
+### `toMongoFilter()`
+
+Generates MongoDB query filter objects:
+
+```typescript
+import { toMongoFilter } from 'native-access-control/adapters';
+import { NoteModel } from './models';
+
+const filter = toMongoFilter({
+  scopeId: workspaceId,
+  scopeKey: 'teamId',
+  userId: currentUserId,
+  userKey: 'ownerId',
+  isRestrictedRole: !isAdmin,
+});
+
+// Use directly in Mongoose or Mongo driver
+const notes = await NoteModel.find(filter);
+```
+
+---
+
+## 4. Supabase
 
 The Supabase adapter attaches partition and ownership scoping filters directly to Supabase client queries.
 
-### 1. `applySupabaseScope()`
-
-Chain scoping directly onto any `@supabase/supabase-js` query builder:
+### A. `applySupabaseScope()`
 
 ```typescript
 import { applySupabaseScope } from 'native-access-control/adapters';
@@ -19,13 +124,12 @@ import { supabase } from './supabaseClient';
 export async function fetchProjects(userContext: { orgId: string; userId?: string; isAdmin: boolean }) {
   let query = supabase.from('projects').select('*');
 
-  // Automatically applies .eq('organization_id', orgId)
-  // and optionally .eq('author_id', userId) if not admin
   query = applySupabaseScope(query, {
     scopeId: userContext.orgId,
     scopeKey: 'organization_id',
     userId: userContext.isAdmin ? undefined : userContext.userId,
     userKey: 'author_id',
+    isRestrictedRole: !userContext.isAdmin,
   });
 
   const { data, error } = await query;
@@ -33,9 +137,7 @@ export async function fetchProjects(userContext: { orgId: string; userId?: strin
 }
 ```
 
-### 2. `toSupabaseMatch()`
-
-Generate a match object for `.match(obj)` queries:
+### B. `toSupabaseMatch()`
 
 ```typescript
 import { toSupabaseMatch } from 'native-access-control/adapters';
@@ -45,6 +147,7 @@ const matchCriteria = toSupabaseMatch({
   scopeKey: 'team_id',
   userId: 'usr_abc',
   userKey: 'creator_id',
+  isRestrictedRole: true,
 });
 // => { team_id: 'org_123', creator_id: 'usr_abc' }
 
@@ -53,99 +156,43 @@ const { data } = await supabase.from('tickets').select('*').match(matchCriteria)
 
 ---
 
-## PostgreSQL Adapter
+## 5. PostgreSQL
 
-The PostgreSQL adapter produces parameterized `WHERE` clauses and Row-Level Security (RLS) SQL policies.
+Parameterized SQL fragments and Row-Level Security (RLS) policies.
 
-### 1. Parameterized WHERE Clauses: `toPostgresWhere()`
-
-Generate safe, parameterized SQL fragments for `pg`, `postgres.js`, `slonik`, or `node-postgres`:
+### A. Parameterized WHERE Clauses: `toPostgresWhere()`
 
 ```typescript
 import { toPostgresWhere } from 'native-access-control/adapters';
-import { sqlClient } from './db';
 
-// Single partition filter
-const singleFilter = toPostgresWhere({
-  scopeId: 'org_99',
-  scopeKey: 'organization_id',
-});
-// => { clause: 'WHERE "organization_id" = $1', values: ['org_99'] }
-
-// Partition + User filter with custom param index
-const complexFilter = toPostgresWhere(
+const { clause, params } = toPostgresWhere(
   {
     scopeId: 'org_99',
     scopeKey: 'organization_id',
     userId: 'usr_42',
     userKey: 'owner_id',
+    isRestrictedRole: true,
   },
   1 // Start parameter index at $1
 );
-// => {
-//   clause: 'WHERE "organization_id" = $1 AND "owner_id" = $2',
-//   values: ['org_99', 'usr_42']
-// }
+// => clause: 'WHERE organization_id = $1 AND owner_id = $2'
+// => params: ['org_99', 'usr_42']
 
-// Execute with pg / node-postgres:
-const result = await sqlClient.query(
-  `SELECT * FROM documents ${complexFilter.clause}`,
-  complexFilter.values
+const result = await db.query(
+  `SELECT * FROM documents ${clause}`,
+  params
 );
 ```
 
-### 2. Row-Level Security (RLS) Generator: `generateRlsPolicy()`
-
-Generate production-ready PostgreSQL Row-Level Security statements:
+### B. Row-Level Security (RLS) Generator: `generateRlsPolicy()`
 
 ```typescript
 import { generateRlsPolicy } from 'native-access-control/adapters';
 
-// Generate RLS policy for organization isolation via JWT claims
-const rlsSql = generateRlsPolicy({
-  tableName: 'invoices',
-  policyName: 'tenant_isolation_invoices',
-  scopeColumn: 'organization_id',
+const sql = generateRlsPolicy({
+  table: 'invoices',
+  scopeKey: 'organization_id',
+  userKey: 'author_id',
   jwtClaim: 'app.current_org_id',
-  command: 'SELECT', // or 'ALL', 'INSERT', 'UPDATE', 'DELETE'
 });
-
-console.log(rlsSql);
-```
-
-**Output SQL:**
-
-```sql
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY tenant_isolation_invoices ON invoices
-  FOR SELECT
-  USING (organization_id = NULLIF(current_setting('app.current_org_id', true), ''));
-```
-
-### Generating RLS with User Ownership Check
-
-```typescript
-const ownershipRls = generateRlsPolicy({
-  tableName: 'notes',
-  policyName: 'user_notes_policy',
-  scopeColumn: 'org_id',
-  jwtClaim: 'app.current_org_id',
-  userColumn: 'author_id',
-  userJwtClaim: 'request.jwt.claim.sub',
-  command: 'ALL',
-});
-```
-
-**Output SQL:**
-
-```sql
-ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY user_notes_policy ON notes
-  FOR ALL
-  USING (
-    org_id = NULLIF(current_setting('app.current_org_id', true), '')
-    AND author_id = NULLIF(current_setting('request.jwt.claim.sub', true), '')
-  );
 ```

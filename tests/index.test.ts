@@ -14,6 +14,15 @@ import {
   applySupabaseScope,
   toPostgresWhere,
   generateRlsPolicy,
+  toDrizzleWhere,
+  toPrismaWhere,
+  createPrismaScopeExtension,
+  protectAction,
+  protectRouteHandler,
+  expressGuard,
+  honoGuard,
+  createTrpcGuard,
+  toMongoFilter,
 } from '../dist/index.js';
 
 test('RBAC: basic direct permissions and wildcards', () => {
@@ -344,3 +353,234 @@ test('PostgreSQL adapter: toPostgresWhere and generateRlsPolicy', () => {
   assert.match(rls, /workspace_id::text/);
   assert.match(rls, /creator_id = auth\.uid\(\)/);
 });
+
+test('Drizzle adapter: toDrizzleWhere', () => {
+  const table = {
+    workspaceId: 'col_workspace_id',
+    creatorId: 'col_creator_id',
+  };
+
+  const operators = {
+    eq: (col: any, val: any) => ({ op: 'eq', col, val }),
+    and: (...conds: any[]) => ({ op: 'and', conds }),
+  };
+
+  // Both scope and user
+  const res1 = toDrizzleWhere(
+    table,
+    {
+      scopeId: 'ws_1',
+      scopeKey: 'workspaceId',
+      userId: 'usr_1',
+      userKey: 'creatorId',
+      isRestrictedRole: true,
+    },
+    operators
+  );
+
+  assert.deepEqual(res1, {
+    op: 'and',
+    conds: [
+      { op: 'eq', col: 'col_workspace_id', val: 'ws_1' },
+      { op: 'eq', col: 'col_creator_id', val: 'usr_1' },
+    ],
+  });
+
+  // Unrestricted: only scopeId
+  const res2 = toDrizzleWhere(
+    table,
+    {
+      scopeId: 'ws_1',
+      scopeKey: 'workspaceId',
+      userId: 'usr_1',
+      userKey: 'creatorId',
+      isRestrictedRole: false,
+    },
+    operators
+  );
+
+  assert.deepEqual(res2, { op: 'eq', col: 'col_workspace_id', val: 'ws_1' });
+});
+
+test('Prisma adapter: toPrismaWhere and createPrismaScopeExtension', async () => {
+  const where = toPrismaWhere({
+    scopeId: 'org_1',
+    scopeKey: 'orgId',
+    userId: 'u_1',
+    userKey: 'userId',
+    isRestrictedRole: true,
+  });
+
+  assert.deepEqual(where, { orgId: 'org_1', userId: 'u_1' });
+
+  // Test extension query interception
+  const ext = createPrismaScopeExtension({
+    scopeId: 'org_100',
+    models: ['Document'],
+  });
+
+  let interceptedArgs: any = null;
+  const mockQuery = async (args: any) => {
+    interceptedArgs = args;
+    return [{ id: 1 }];
+  };
+
+  await ext.query.$allModels.$allOperations({
+    model: 'Document',
+    operation: 'findMany',
+    args: { where: { status: 'published' } },
+    query: mockQuery,
+  });
+
+  assert.deepEqual(interceptedArgs, {
+    where: {
+      status: 'published',
+      scopeId: 'org_100',
+    },
+  });
+});
+
+test('MongoDB adapter: toMongoFilter', () => {
+  const filter = toMongoFilter({
+    scopeId: 'tenant_1',
+    scopeKey: 'tenantId',
+    userId: 'user_1',
+    userKey: 'authorId',
+    isRestrictedRole: true,
+  });
+
+  assert.deepEqual(filter, { tenantId: 'tenant_1', authorId: 'user_1' });
+});
+
+test('Next.js adapter: protectAction and protectRouteHandler', async () => {
+  const engine = createAccessEngine({
+    policies: {
+      admin: ['*'],
+      viewer: ['posts:read'],
+    },
+  });
+
+  const viewerEvaluator = engine.buildEvaluator(['viewer']);
+
+  // protectAction
+  const safeAction = protectAction(
+    viewerEvaluator,
+    'posts:read',
+    async (id: string) => `post_${id}`
+  );
+
+  const result = await safeAction('123');
+  assert.equal(result, 'post_123');
+
+  const unsafeAction = protectAction(
+    viewerEvaluator,
+    'posts:delete',
+    async (id: string) => `deleted_${id}`
+  );
+
+  await assert.rejects(
+    async () => unsafeAction('123'),
+    (err: any) => err instanceof AccessDeniedError && err.action === 'delete'
+  );
+
+  // protectRouteHandler
+  const handler = protectRouteHandler(
+    () => viewerEvaluator,
+    'posts:read',
+    async () => ({ status: 200 })
+  );
+
+  const res = await handler({} as any);
+  assert.deepEqual(res, { status: 200 });
+});
+
+test('Express adapter: expressGuard', () => {
+  const engine = createAccessEngine({
+    policies: { admin: ['*'], member: ['docs:read'] },
+  });
+
+  const memberEval = engine.buildEvaluator(['member']);
+
+  let nextCalled = false;
+  const req = {};
+  const res: any = {
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body: any) {
+      this.body = body;
+      return this;
+    },
+  };
+
+  // Allowed
+  const guardPass = expressGuard(memberEval, 'docs:read');
+  guardPass(req, res, () => {
+    nextCalled = true;
+  });
+  assert.equal(nextCalled, true);
+
+  // Denied
+  let nextErr: any = null;
+  const guardFail = expressGuard(memberEval, 'docs:delete');
+  guardFail(req, res, (err) => {
+    nextErr = err;
+  });
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.error, 'Forbidden');
+});
+
+test('Hono adapter: honoGuard', async () => {
+  const engine = createAccessEngine({
+    policies: { admin: ['*'] },
+  });
+  const guestEval = engine.buildEvaluator(['guest']);
+
+  let nextCalled = false;
+  const mockC: any = {
+    json(body: any, status: number) {
+      return { body, status };
+    },
+  };
+
+  const guard = honoGuard(guestEval, 'admin:access');
+  const response = await guard(mockC, async () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(response.status, 403);
+});
+
+test('tRPC adapter: createTrpcGuard', async () => {
+  const engine = createAccessEngine({
+    policies: { user: ['profile:view'] },
+  });
+
+  const evalUser = engine.buildEvaluator(['user']);
+
+  const guard = createTrpcGuard(evalUser, 'profile:view');
+
+  let nextCalled = false;
+  await guard({
+    ctx: {},
+    next: async () => {
+      nextCalled = true;
+      return 'ok';
+    },
+  });
+
+  assert.equal(nextCalled, true);
+
+  const guardDeny = createTrpcGuard(evalUser, 'profile:delete');
+  await assert.rejects(
+    async () =>
+      guardDeny({
+        ctx: {},
+        next: async () => 'ok',
+      }),
+    (err: any) => err instanceof AccessDeniedError
+  );
+});
+
