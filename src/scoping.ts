@@ -60,3 +60,58 @@ export function scopeRecords<TRecord, TUserId = any, TTenantId = any>(
     return true;
   });
 }
+
+export interface ScopeFilterOptions<TUserId = any, TTenantId = any> {
+  tenantId?: TTenantId | null;
+  tenantKey?: string;
+  userId?: TUserId | null;
+  userKey?: string;
+  isRestrictedRole?: boolean;
+}
+
+/**
+ * Builds a database query WHERE object (compatible with Supabase, Prisma, Drizzle, Mongo)
+ * applying tenant isolation and ownership filtering.
+ */
+export function buildScopeFilter<TUserId = any, TTenantId = any>(
+  options: ScopeFilterOptions<TUserId, TTenantId>
+): Record<string, any> {
+  const filter: Record<string, any> = {};
+
+  if (options.tenantId !== undefined && options.tenantId !== null) {
+    filter[options.tenantKey || 'tenantId'] = options.tenantId;
+  }
+
+  if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {
+    filter[options.userKey || 'userId'] = options.userId;
+  }
+
+  return filter;
+}
+
+export interface FilterRecordOptions<TRecord extends Record<string, any>> {
+  allowedFields?: (keyof TRecord)[] | '*';
+  omitFields?: (keyof TRecord)[];
+}
+
+/**
+ * Masks or projects allowed fields on a record to prevent leaking sensitive attributes.
+ */
+export function filterRecord<TRecord extends Record<string, any>>(
+  record: TRecord,
+  options: FilterRecordOptions<TRecord>
+): Partial<TRecord> {
+  const { allowedFields = '*', omitFields = [] } = options;
+  const result: Partial<TRecord> = {};
+  const omitSet = new Set(omitFields as string[]);
+  const allowedSet = allowedFields === '*' ? null : new Set(allowedFields as string[]);
+
+  for (const [key, value] of Object.entries(record)) {
+    if (omitSet.has(key)) continue;
+    if (allowedSet === null || allowedSet.has(key)) {
+      (result as any)[key] = value;
+    }
+  }
+
+  return result;
+}

@@ -299,18 +299,73 @@ app.delete('/api/posts/:id', (req, res) => {
 
 ---
 
-### 8. Dynamic Policy Updates
+### 8. Database Query Filtering (`buildScopeFilter`)
 
-Add or change policies dynamically at runtime (e.g. loaded from a database or remote permissions API):
+Generate a WHERE object for databases or ORMs (Prisma, Supabase, Drizzle, Mongo):
 
 ```ts
-// Add a single rule to a role
-engine.addPolicy('viewer', 'comments:create');
+import { buildScopeFilter } from 'native-access-control';
 
-// Replace all policies at runtime
-engine.setPolicies({
-  admin: ['*'],
-  custom_role: ['reports:export'],
+const where = buildScopeFilter({
+  tenantId: activeBusinessId,
+  tenantKey: 'business_id',
+  userId: currentTenantId,
+  userKey: 'tenant_id',
+  isRestrictedRole: isTenantOnly,
+});
+
+// Prisma:   db.contract.findMany({ where })
+// Supabase: supabase.from('contracts').select().match(where)
+```
+
+---
+
+### 9. Fail-Fast Assertions (`assertCan` & `assertHasRole`)
+
+Cleanly guard mutations, handlers, or background services without repetitive `if (cannot(...))` blocks:
+
+```ts
+import { assertCan, assertHasRole } from 'native-access-control';
+
+async function deleteContract(id: string) {
+  // Automatically throws AccessDeniedError (403) if unauthorized
+  assertCan(evaluator, 'delete', 'contract');
+  await api.deleteContract(id);
+}
+```
+
+---
+
+### 10. Route & Navigation Protection (`checkRouteAccess`)
+
+Check navigation routes in Expo Router (`_layout.tsx`), React Navigation, or Next.js:
+
+```ts
+import { checkRouteAccess } from 'native-access-control';
+
+const { allowed, redirectTo } = checkRouteAccess(pathname, userRoles, {
+  '/admin/*': ['admin'],
+  '/reports': ['admin', 'staff'],
+  '/public': '*',
+}, { fallbackRoute: '/dashboard' });
+
+if (!allowed) {
+  return <Redirect href={redirectTo} />;
+}
+```
+
+---
+
+### 11. Sensitive Field Masking (`filterRecord`)
+
+Filter unauthorized fields before returning data to the client:
+
+```ts
+import { filterRecord } from 'native-access-control';
+
+const safeProperty = filterRecord(property, {
+  allowedFields: isTenant ? ['id', 'address', 'rent'] : '*',
+  omitFields: isTenant ? ['owner_bank_details', 'internal_notes'] : [],
 });
 ```
 
@@ -328,7 +383,13 @@ engine.setPolicies({
 | `<Cannot>` | Component | Inverted conditional render component |
 | `<Protect>` | Component | Screen/route guard with fallback support |
 | `createRoleGuard(roles)` | Helper | Creates custom single/multi-role components (e.g. `<AdminOnly>`) |
-| `scopeRecords(records, options)` | Function | Filters arrays by tenant and ownership |
+| `scopeRecords(records, options)` | Function | Filters in-memory arrays by tenant and ownership |
+| `buildScopeFilter(options)` | Function | Generates database query WHERE filters (Prisma/Drizzle/Supabase) |
+| `filterRecord(record, options)` | Function | Masks/omits sensitive object fields |
+| `assertCan(eval, action, res)` | Function | Throws `AccessDeniedError` if capability check fails |
+| `assertHasRole(eval, roles)` | Function | Throws `AccessDeniedError` if role check fails |
+| `checkRouteAccess(path, roles, routes)` | Function | Validates route permissions for Expo Router / Next.js |
+| `AccessDeniedError` | Error | Standard 403 error class with action/resource context |
 
 ---
 

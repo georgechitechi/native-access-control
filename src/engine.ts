@@ -217,5 +217,13 @@ export function createAccessEngine<
     getPolicies(): Policies<TRole, TResource, TAction, TContext> {
       return { ...policies };
     },
+
+    exportPolicies(): Policies<TRole, TResource, TAction, TContext> {
+      return { ...policies };
+    },
+
+    importPolicies(imported: Policies<TRole, TResource, TAction, TContext>): void {
+      policies = { ...imported };
+    },
   };
 }

@@ -4,6 +4,12 @@ import {
   createAccessEngine,
   createAccessControl,
   scopeRecords,
+  buildScopeFilter,
+  filterRecord,
+  assertCan,
+  assertHasRole,
+  AccessDeniedError,
+  checkRouteAccess,
 } from '../dist/index.js';
 
 test('RBAC: basic direct permissions and wildcards', () => {
@@ -120,6 +126,125 @@ test('scopeRecords: Multi-tenant and ownership filtering', () => {
   });
   assert.equal(userDocs.length, 1);
   assert.equal(userDocs[0].id, 1);
+});
+
+test('buildScopeFilter generates correct database where objects', () => {
+  const filter = buildScopeFilter({
+    tenantId: 'biz_123',
+    tenantKey: 'business_id',
+    userId: 'tenant_456',
+    userKey: 'tenant_id',
+    isRestrictedRole: true,
+  });
+
+  assert.deepEqual(filter, {
+    business_id: 'biz_123',
+    tenant_id: 'tenant_456',
+  });
+
+  const adminFilter = buildScopeFilter({
+    tenantId: 'biz_123',
+    tenantKey: 'business_id',
+    userId: 'tenant_456',
+    userKey: 'tenant_id',
+    isRestrictedRole: false,
+  });
+
+  assert.deepEqual(adminFilter, {
+    business_id: 'biz_123',
+  });
+});
+
+test('filterRecord masks and projects allowed fields', () => {
+  const rawRecord = {
+    id: 'rec_1',
+    name: 'Office 101',
+    rent: 500,
+    ownerBankDetails: 'SECRET_IBAN',
+  };
+
+  const masked = filterRecord(rawRecord, {
+    allowedFields: ['id', 'name', 'rent'],
+  });
+  assert.deepEqual(masked, { id: 'rec_1', name: 'Office 101', rent: 500 });
+
+  const omitted = filterRecord(rawRecord, {
+    omitFields: ['ownerBankDetails'],
+  });
+  assert.deepEqual(omitted, { id: 'rec_1', name: 'Office 101', rent: 500 });
+});
+
+test('assertCan and assertHasRole throw AccessDeniedError on failure', () => {
+  const engine = createAccessEngine({
+    policies: {
+      editor: ['post:edit'],
+    },
+  });
+
+  const evaluator = engine.buildEvaluator(['editor']);
+
+  // Success should not throw
+  assert.doesNotThrow(() => {
+    assertCan(evaluator, 'edit', 'post');
+    assertHasRole(evaluator, 'editor');
+  });
+
+  // Forbidden capability should throw AccessDeniedError
+  assert.throws(
+    () => {
+      assertCan(evaluator, 'delete', 'post');
+    },
+    (err: any) => err instanceof AccessDeniedError && err.action === 'delete'
+  );
+
+  // Missing role should throw AccessDeniedError
+  assert.throws(
+    () => {
+      assertHasRole(evaluator, 'admin');
+    },
+    (err: any) => err instanceof AccessDeniedError
+  );
+});
+
+test('checkRouteAccess validates navigation paths and wildcards', () => {
+  const routes = {
+    '/admin/*': ['admin'],
+    '/dashboard': '*',
+    '/reports': ['admin', 'staff'],
+  };
+
+  // Staff user
+  const staffRoles = ['staff'];
+
+  const r1 = checkRouteAccess('/dashboard', staffRoles, routes);
+  assert.equal(r1.allowed, true);
+
+  const r2 = checkRouteAccess('/reports', staffRoles, routes);
+  assert.equal(r2.allowed, true);
+
+  const r3 = checkRouteAccess('/admin/settings', staffRoles, routes, {
+    fallbackRoute: '/dashboard',
+  });
+  assert.equal(r3.allowed, false);
+  assert.equal(r3.redirectTo, '/dashboard');
+});
+
+test('exportPolicies and importPolicies', () => {
+  const engine = createAccessEngine({
+    policies: {
+      user: ['doc:read'],
+    },
+  });
+
+  const snapshot = engine.exportPolicies();
+  assert.deepEqual(snapshot, { user: ['doc:read'] });
+
+  engine.importPolicies({
+    user: ['doc:read', 'doc:edit'],
+  });
+
+  const evaluator = engine.buildEvaluator(['user']);
+  assert.equal(evaluator.can('edit', 'doc'), true);
 });
 
 test('createAccessControl suite setup', () => {
