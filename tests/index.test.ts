@@ -10,6 +10,10 @@ import {
   assertHasRole,
   AccessDeniedError,
   checkRouteAccess,
+  toSupabaseMatch,
+  applySupabaseScope,
+  toPostgresWhere,
+  generateRlsPolicy,
 } from '../dist/index.js';
 
 test('RBAC: basic direct permissions and wildcards', () => {
@@ -264,4 +268,79 @@ test('createAccessControl suite setup', () => {
   assert.ok(suite.Protect);
   assert.ok(suite.createRoleGuard);
   assert.ok(suite.scopeRecords);
+});
+
+test('Supabase adapter: toSupabaseMatch and applySupabaseScope', () => {
+  const match = toSupabaseMatch({
+    scopeId: 'biz_abc',
+    scopeKey: 'business_id',
+    userId: 'usr_xyz',
+    userKey: 'author_id',
+    isRestrictedRole: true,
+  });
+
+  assert.deepEqual(match, {
+    business_id: 'biz_abc',
+    author_id: 'usr_xyz',
+  });
+
+  // Mock Supabase QueryBuilder
+  const appliedFilters: Record<string, any> = {};
+  const mockQuery = {
+    eq(col: string, val: any) {
+      appliedFilters[col] = val;
+      return this;
+    },
+  };
+
+  applySupabaseScope(mockQuery, {
+    scopeId: 'biz_abc',
+    scopeKey: 'business_id',
+    userId: 'usr_xyz',
+    userKey: 'author_id',
+    isRestrictedRole: true,
+  });
+
+  assert.deepEqual(appliedFilters, {
+    business_id: 'biz_abc',
+    author_id: 'usr_xyz',
+  });
+});
+
+test('PostgreSQL adapter: toPostgresWhere and generateRlsPolicy', () => {
+  const { where, clause, params, nextIndex } = toPostgresWhere({
+    scopeId: 'org_1',
+    scopeKey: 'org_id',
+    userId: 'u_1',
+    userKey: 'user_id',
+    isRestrictedRole: true,
+    startIndex: 1,
+  });
+
+  assert.equal(where, 'org_id = $1 AND user_id = $2');
+  assert.equal(clause, 'WHERE org_id = $1 AND user_id = $2');
+  assert.deepEqual(params, ['org_1', 'u_1']);
+  assert.equal(nextIndex, 3);
+
+  // Unrestricted check (only scope)
+  const unrestricted = toPostgresWhere({
+    scopeId: 'org_1',
+    scopeKey: 'org_id',
+    userId: 'u_1',
+    isRestrictedRole: false,
+  });
+
+  assert.equal(unrestricted.clause, 'WHERE org_id = $1');
+  assert.deepEqual(unrestricted.params, ['org_1']);
+
+  // RLS SQL generation
+  const rls = generateRlsPolicy({
+    table: 'documents',
+    scopeKey: 'workspace_id',
+    userKey: 'creator_id',
+  });
+
+  assert.match(rls, /ALTER TABLE "documents" ENABLE ROW LEVEL SECURITY;/);
+  assert.match(rls, /workspace_id::text/);
+  assert.match(rls, /creator_id = auth\.uid\(\)/);
 });

@@ -364,8 +364,74 @@ Filter unauthorized fields before returning data to the client:
 import { filterRecord } from 'native-access-control';
 
 const safeProperty = filterRecord(property, {
-  allowedFields: isTenant ? ['id', 'address', 'rent'] : '*',
-  omitFields: isTenant ? ['owner_bank_details', 'internal_notes'] : [],
+  allowedFields: isRestricted ? ['id', 'address', 'rent'] : '*',
+  omitFields: isRestricted ? ['owner_bank_details', 'internal_notes'] : [],
+});
+```
+
+---
+
+### 12. Supabase & PostgreSQL Adapters
+
+#### Supabase (`applySupabaseScope` & `toSupabaseMatch`)
+Apply scope and ownership filters directly to a Supabase query builder:
+
+```ts
+import { applySupabaseScope, toSupabaseMatch } from 'native-access-control/adapters';
+
+// Pattern A: Chain directly onto query
+let query = supabase.from('receipts').select('*');
+query = applySupabaseScope(query, {
+  scopeId: activeOrgId,
+  scopeKey: 'org_id',
+  userId: currentUserId,
+  userKey: 'author_id',
+  isRestrictedRole: !isAdmin,
+});
+const { data } = await query;
+
+// Pattern B: Use with .match()
+const filter = toSupabaseMatch({
+  scopeId: activeOrgId,
+  scopeKey: 'org_id',
+  userId: currentUserId,
+  userKey: 'author_id',
+  isRestrictedRole: !isAdmin,
+});
+const { data: matched } = await supabase.from('receipts').select().match(filter);
+```
+
+#### PostgreSQL Parameterized SQL (`toPostgresWhere`)
+Generate parameterized SQL `$1, $2` to prevent SQL injection in `pg`, `postgres.js`, or raw queries:
+
+```ts
+import { toPostgresWhere } from 'native-access-control/adapters';
+
+const { clause, params } = toPostgresWhere({
+  scopeId: activeWorkspaceId,
+  scopeKey: 'workspace_id',
+  userId: currentUserId,
+  userKey: 'author_id',
+  isRestrictedRole: !isAdmin,
+  startIndex: 1, // $1, $2
+});
+
+// clause: "WHERE workspace_id = $1 AND author_id = $2"
+// params: ['ws_123', 'usr_456']
+
+const res = await db.query(`SELECT * FROM documents ${clause}`, params);
+```
+
+#### Postgres / Supabase RLS Policy Generator (`generateRlsPolicy`)
+Generate standard PostgreSQL Row-Level Security (RLS) SQL policies:
+
+```ts
+import { generateRlsPolicy } from 'native-access-control/adapters';
+
+const sql = generateRlsPolicy({
+  table: 'contracts',
+  scopeKey: 'business_id',
+  userKey: 'user_id',
 });
 ```
 
@@ -383,12 +449,16 @@ const safeProperty = filterRecord(property, {
 | `<Cannot>` | Component | Inverted conditional render component |
 | `<Protect>` | Component | Screen/route guard with fallback support |
 | `createRoleGuard(roles)` | Helper | Creates custom single/multi-role components (e.g. `<AdminOnly>`) |
-| `scopeRecords(records, options)` | Function | Filters in-memory arrays by tenant and ownership |
+| `scopeRecords(records, options)` | Function | Filters in-memory arrays by scope partition and ownership |
 | `buildScopeFilter(options)` | Function | Generates database query WHERE filters (Prisma/Drizzle/Supabase) |
 | `filterRecord(record, options)` | Function | Masks/omits sensitive object fields |
 | `assertCan(eval, action, res)` | Function | Throws `AccessDeniedError` if capability check fails |
 | `assertHasRole(eval, roles)` | Function | Throws `AccessDeniedError` if role check fails |
 | `checkRouteAccess(path, roles, routes)` | Function | Validates route permissions for Expo Router / Next.js |
+| `applySupabaseScope(query, options)` | Function | Injects `.eq()` constraints directly into Supabase queries |
+| `toSupabaseMatch(options)` | Function | Generates Supabase `.match()` filter dictionary |
+| `toPostgresWhere(options)` | Function | Generates parameterized `$1, $2` SQL clause and parameter array |
+| `generateRlsPolicy(options)` | Function | Generates PostgreSQL / Supabase Row-Level Security SQL |
 | `AccessDeniedError` | Error | Standard 403 error class with action/resource context |
 
 ---
