@@ -31,6 +31,7 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "tsc && node --no-warnings --test tests/index.test.ts",
+    "docs:serve": "npx docsify-cli serve docs",
     "prepublishOnly": "npm run test"
   },
   "peerDependencies": {
