@@ -1,7 +1,6 @@
 import type {
   AccessControlConfig,
   AccessEvaluator,
-  AttributeRule,
   Policies,
   RoleHierarchy,
   RoleRule,
@@ -56,14 +55,6 @@ function matchesRule(
       rule === `*:${action}` ||
       rule === `${resource}:${action}`;
     return { matches, isDeny: false };
-  }
-
-  if (typeof rule === 'function') {
-    try {
-      return { matches: Boolean(rule(context)), isDeny: false };
-    } catch {
-      return { matches: false, isDeny: false };
-    }
   }
 
   if (typeof rule === 'object' && rule !== null) {
@@ -216,14 +207,6 @@ export function createAccessEngine<
 
     getPolicies(): Policies<TRole, TResource, TAction, TContext> {
       return { ...policies };
-    },
-
-    exportPolicies(): Policies<TRole, TResource, TAction, TContext> {
-      return { ...policies };
-    },
-
-    importPolicies(imported: Policies<TRole, TResource, TAction, TContext>): void {
-      policies = { ...imported };
     },
   };
 }

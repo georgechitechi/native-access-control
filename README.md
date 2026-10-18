@@ -241,22 +241,22 @@ Or protect based on capabilities:
 
 ---
 
-### 6. Multi-Tenant & Ownership Data Scoping (`scopeRecords`)
+### 6. Partition & Ownership Data Scoping (`scopeRecords`)
 
-Filter raw arrays in state, services, or APIs to ensure restricted roles only see their own records, while privileged users see all records:
+Filter raw arrays in state, services, or APIs to ensure restricted roles only see their permitted records (by workspace, org, or ownership), while privileged users see all records:
 
 ```ts
 import { scopeRecords } from './access';
 
-// Scopes records based on tenant and ownership:
+// Scopes records based on partition/scope and ownership:
 const visiblePosts = scopeRecords(allPosts, {
-  // 1. Tenant isolation (always enforced when provided)
-  tenantId: activeOrgId,
-  tenantKey: 'orgId',
+  // 1. Scope partition isolation (workspace, org, account, project, etc.)
+  scopeId: activeWorkspaceId,
+  scopeKey: 'workspaceId',
 
   // 2. Ownership check (applied only if restricted)
   userId: currentUserId,
-  userKey: 'authorId', // defaults to 'userId', 'user_id', 'ownerId', or 'authorId'
+  userKey: 'authorId', // defaults to 'userId'
   isRestrictedRole: !currentUser.isAdmin,
 
   // 3. Optional custom predicate (ABAC)
@@ -301,21 +301,21 @@ app.delete('/api/posts/:id', (req, res) => {
 
 ### 8. Database Query Filtering (`buildScopeFilter`)
 
-Generate a WHERE object for databases or ORMs (Prisma, Supabase, Drizzle, Mongo):
+Generate a WHERE filter object for databases or ORMs (Prisma, Supabase, Drizzle, Mongo):
 
 ```ts
 import { buildScopeFilter } from 'native-access-control';
 
 const where = buildScopeFilter({
-  tenantId: activeBusinessId,
-  tenantKey: 'business_id',
-  userId: currentTenantId,
-  userKey: 'tenant_id',
-  isRestrictedRole: isTenantOnly,
+  scopeId: activeWorkspaceId,
+  scopeKey: 'workspace_id',
+  userId: currentUserId,
+  userKey: 'author_id',
+  isRestrictedRole: !isAdmin,
 });
 
-// Prisma:   db.contract.findMany({ where })
-// Supabase: supabase.from('contracts').select().match(where)
+// Prisma:   db.document.findMany({ where })
+// Supabase: supabase.from('documents').select().match(where)
 ```
 
 ---

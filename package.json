@@ -25,7 +25,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
-    "test": "tsc && node --test tests/index.test.ts",
+    "test": "tsc && node --no-warnings --test tests/index.test.ts",
     "prepublishOnly": "npm run test"
   },
   "peerDependencies": {

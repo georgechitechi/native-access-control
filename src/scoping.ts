@@ -1,29 +1,49 @@
-export interface ScopeRecordsOptions<TRecord, TUserId = any, TTenantId = any> {
-  userId?: TUserId | null;
-  userKey?: keyof TRecord | (keyof TRecord)[];
-  tenantId?: TTenantId | null;
-  tenantKey?: keyof TRecord | (keyof TRecord)[];
+export interface ScopeRecordsOptions<TRecord> {
+  /**
+   * Boundary / Group identifier to isolate records (e.g. organization, business, workspace, project).
+   */
+  scopeId?: any;
+  scopeKey?: keyof TRecord;
+
+  /**
+   * User / Owner identifier for ownership checks.
+   */
+  userId?: any;
+  userKey?: keyof TRecord;
+
+  /**
+   * If true (or function returns true), user ownership restrictions are applied.
+   * If false, privileged users see all records within the scope.
+   */
   isRestrictedRole?: boolean | ((roles?: string[]) => boolean);
   roles?: string[];
+
+  /**
+   * Optional custom predicate function for dynamic attribute filtering.
+   */
   predicate?: (record: TRecord) => boolean;
+
+  /**
+   * If user ID is missing when restricted, returns empty array if true.
+   * Default: true.
+   */
   fallbackToEmpty?: boolean;
 }
 
 /**
- * Filter records for restricted roles so they only see their permitted records
- * (e.g. by ownership or tenant), while privileged roles see all records.
+ * Filters an array of records by scope/partition and user ownership.
  */
-export function scopeRecords<TRecord, TUserId = any, TTenantId = any>(
+export function scopeRecords<TRecord>(
   records: TRecord[],
-  options: ScopeRecordsOptions<TRecord, TUserId, TTenantId>
+  options: ScopeRecordsOptions<TRecord>
 ): TRecord[] {
   if (!Array.isArray(records) || records.length === 0) return [];
 
   const {
+    scopeId,
+    scopeKey = 'scopeId' as keyof TRecord,
     userId,
-    userKey,
-    tenantId,
-    tenantKey,
+    userKey = 'userId' as keyof TRecord,
     isRestrictedRole = false,
     roles = [],
     predicate,
@@ -33,53 +53,42 @@ export function scopeRecords<TRecord, TUserId = any, TTenantId = any>(
   const restricted =
     typeof isRestrictedRole === 'function' ? isRestrictedRole(roles) : Boolean(isRestrictedRole);
 
-  const tenantKeys = tenantKey
-    ? (Array.isArray(tenantKey) ? tenantKey : [tenantKey])
-    : (['tenantId', 'tenant_id', 'orgId', 'organization_id'] as (keyof TRecord)[]);
-
-  const userKeys = userKey
-    ? (Array.isArray(userKey) ? userKey : [userKey])
-    : (['userId', 'user_id', 'ownerId', 'owner_id', 'authorId', 'author_id'] as (keyof TRecord)[]);
-
   return records.filter(record => {
-    // 1. Tenant match (if tenantId is provided)
-    if (tenantId !== undefined && tenantId !== null) {
-      const matchesTenant = tenantKeys.some(k => (record as any)[k] === tenantId);
-      if (!matchesTenant) return false;
+    // 1. Scope partition check (when scopeId is provided)
+    if (scopeId !== undefined && scopeId !== null) {
+      if ((record as any)[scopeKey] !== scopeId) return false;
     }
 
-    // 2. Custom predicate
+    // 2. Custom predicate check
     if (predicate && !predicate(record)) return false;
 
-    // 3. Ownership match (only if restricted)
+    // 3. Ownership match (applied only when restricted)
     if (restricted) {
       if (userId === undefined || userId === null) return !fallbackToEmpty;
-      return userKeys.some(k => (record as any)[k] === userId);
+      return (record as any)[userKey] === userId;
     }
 
     return true;
   });
 }
 
-export interface ScopeFilterOptions<TUserId = any, TTenantId = any> {
-  tenantId?: TTenantId | null;
-  tenantKey?: string;
-  userId?: TUserId | null;
+export interface ScopeFilterOptions {
+  scopeId?: any;
+  scopeKey?: string;
+  userId?: any;
   userKey?: string;
   isRestrictedRole?: boolean;
 }
 
 /**
- * Builds a database query WHERE object (compatible with Supabase, Prisma, Drizzle, Mongo)
- * applying tenant isolation and ownership filtering.
+ * Builds a database query WHERE filter object (compatible with Prisma, Supabase, Drizzle, Mongo)
+ * applying scope isolation and ownership filtering.
  */
-export function buildScopeFilter<TUserId = any, TTenantId = any>(
-  options: ScopeFilterOptions<TUserId, TTenantId>
-): Record<string, any> {
+export function buildScopeFilter(options: ScopeFilterOptions): Record<string, any> {
   const filter: Record<string, any> = {};
 
-  if (options.tenantId !== undefined && options.tenantId !== null) {
-    filter[options.tenantKey || 'tenantId'] = options.tenantId;
+  if (options.scopeId !== undefined && options.scopeId !== null) {
+    filter[options.scopeKey || 'scopeId'] = options.scopeId;
   }
 
   if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {

@@ -23,24 +23,12 @@ export interface RoleGuardProps {
   fallback?: React.ReactNode;
 }
 
-export interface CreateAccessControlConfig<
-  TRole extends string = string,
-  TResource extends string = string,
-  TAction extends string = string,
-  TContext = any
-> extends AccessControlConfig<TRole, TResource, TAction, TContext> {
-  defaultFallback?: React.ReactNode;
-}
-
-/**
- * Factory function to create a fully typed Access Control suite.
- */
 export function createAccessControl<
   TRole extends string = string,
   TResource extends string = string,
   TAction extends string = string,
   TContext = any
->(config: CreateAccessControlConfig<TRole, TResource, TAction, TContext>) {
+>(config: AccessControlConfig<TRole, TResource, TAction, TContext>) {
   const engine = createAccessEngine<TRole, TResource, TAction, TContext>(config);
 
   function TypedAccessProvider({

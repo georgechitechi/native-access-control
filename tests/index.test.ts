@@ -106,20 +106,21 @@ test('SuperRoles bypass', () => {
   assert.equal(owner.hasRole('admin'), true);
 });
 
-test('scopeRecords: Multi-tenant and ownership filtering', () => {
+test('scopeRecords: Partition scope and ownership filtering', () => {
   const records = [
     { id: 1, orgId: 'org_A', authorId: 'u1', title: 'Doc 1' },
     { id: 2, orgId: 'org_A', authorId: 'u2', title: 'Doc 2' },
     { id: 3, orgId: 'org_B', authorId: 'u1', title: 'Doc 3' },
   ];
 
-  // Scoped to tenant
-  const orgDocs = scopeRecords(records, { tenantId: 'org_A' });
+  // Scoped to partition / organization
+  const orgDocs = scopeRecords(records, { scopeId: 'org_A', scopeKey: 'orgId' });
   assert.equal(orgDocs.length, 2);
 
-  // Scoped to restricted user in tenant
+  // Scoped to restricted user in partition
   const userDocs = scopeRecords(records, {
-    tenantId: 'org_A',
+    scopeId: 'org_A',
+    scopeKey: 'orgId',
     userId: 'u1',
     userKey: 'authorId',
     isRestrictedRole: true,
@@ -130,23 +131,23 @@ test('scopeRecords: Multi-tenant and ownership filtering', () => {
 
 test('buildScopeFilter generates correct database where objects', () => {
   const filter = buildScopeFilter({
-    tenantId: 'biz_123',
-    tenantKey: 'business_id',
-    userId: 'tenant_456',
-    userKey: 'tenant_id',
+    scopeId: 'biz_123',
+    scopeKey: 'business_id',
+    userId: 'user_456',
+    userKey: 'user_id',
     isRestrictedRole: true,
   });
 
   assert.deepEqual(filter, {
     business_id: 'biz_123',
-    tenant_id: 'tenant_456',
+    user_id: 'user_456',
   });
 
   const adminFilter = buildScopeFilter({
-    tenantId: 'biz_123',
-    tenantKey: 'business_id',
-    userId: 'tenant_456',
-    userKey: 'tenant_id',
+    scopeId: 'biz_123',
+    scopeKey: 'business_id',
+    userId: 'user_456',
+    userKey: 'user_id',
     isRestrictedRole: false,
   });
 
@@ -229,17 +230,17 @@ test('checkRouteAccess validates navigation paths and wildcards', () => {
   assert.equal(r3.redirectTo, '/dashboard');
 });
 
-test('exportPolicies and importPolicies', () => {
+test('getPolicies and setPolicies', () => {
   const engine = createAccessEngine({
     policies: {
       user: ['doc:read'],
     },
   });
 
-  const snapshot = engine.exportPolicies();
+  const snapshot = engine.getPolicies();
   assert.deepEqual(snapshot, { user: ['doc:read'] });
 
-  engine.importPolicies({
+  engine.setPolicies({
     user: ['doc:read', 'doc:edit'],
   });
 

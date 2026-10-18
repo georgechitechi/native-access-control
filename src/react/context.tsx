@@ -15,10 +15,9 @@ export const AccessControlContext = createContext<AccessContextValue<any, any, a
 
 export interface AccessProviderProps<TRole extends string = string, TContext = any> {
   children: React.ReactNode;
-  roles?: TRole[];
-  isSuperUser?: boolean;
+  evaluator: AccessEvaluator<TRole, any, any, TContext>;
   loading?: boolean;
-  evaluator?: AccessEvaluator<TRole, any, any, TContext>;
+  isSuperUser?: boolean;
 }
 
 export function AccessProvider<
@@ -28,35 +27,17 @@ export function AccessProvider<
   TContext = any
 >({
   children,
-  roles = [],
-  isSuperUser = false,
-  loading = false,
   evaluator,
+  loading = false,
+  isSuperUser = false,
 }: AccessProviderProps<TRole, TContext>) {
   const value = useMemo<AccessContextValue<TRole, TResource, TAction, TContext>>(() => {
-    if (evaluator) {
-      return {
-        ...evaluator,
-        loading,
-        isSuperUser,
-      };
-    }
-
     return {
-      can: () => isSuperUser,
-      cannot: () => !isSuperUser,
-      canAll: () => isSuperUser,
-      canAny: () => isSuperUser,
-      hasRole: (r: any) =>
-        isSuperUser || (Array.isArray(r) ? r.some(x => roles.includes(x)) : roles.includes(r)),
-      hasAllRoles: (r: any) => isSuperUser || r.every((x: any) => roles.includes(x)),
-      hasAnyRole: (r: any) => isSuperUser || r.some((x: any) => roles.includes(x)),
-      roles,
-      effectiveRoles: roles,
+      ...evaluator,
       loading,
       isSuperUser,
     };
-  }, [evaluator, roles, isSuperUser, loading]);
+  }, [evaluator, loading, isSuperUser]);
 
   return (
     <AccessControlContext.Provider value={value}>
@@ -73,19 +54,7 @@ export function useAccess<
 >(): AccessContextValue<TRole, TResource, TAction, TContext> {
   const ctx = useContext(AccessControlContext);
   if (!ctx) {
-    return {
-      can: () => false,
-      cannot: () => true,
-      canAll: () => false,
-      canAny: () => false,
-      hasRole: () => false,
-      hasAllRoles: () => false,
-      hasAnyRole: () => false,
-      roles: [],
-      effectiveRoles: [],
-      loading: false,
-      isSuperUser: false,
-    };
+    throw new Error('useAccess must be used within an AccessProvider');
   }
   return ctx;
 }

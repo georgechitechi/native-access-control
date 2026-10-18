@@ -1,16 +1,11 @@
-export type WildcardPermission = '*';
-export type ResourceWildcard<TResource extends string> = `${TResource}:*`;
-export type ActionWildcard<TAction extends string> = `*:${TAction}`;
-export type SpecificPermission<TResource extends string, TAction extends string> = `${TResource}:${TAction}`;
-
 export type Permission<TResource extends string = string, TAction extends string = string> =
-  | WildcardPermission
-  | ResourceWildcard<TResource>
-  | ActionWildcard<TAction>
-  | SpecificPermission<TResource, TAction>
-  | string;
+  | '*'
+  | `${TResource}:*`
+  | `*:${TAction}`
+  | `${TResource}:${TAction}`
+  | (string & {});
 
-export type AttributeRule<TContext = any> = (context: TContext) => boolean;
+export type RuleCondition<TContext = any> = (context: TContext) => boolean;
 
 export interface RuleObject<
   TResource extends string = string,
@@ -19,7 +14,7 @@ export interface RuleObject<
 > {
   action: TAction | TAction[] | string;
   resource: TResource | TResource[] | string;
-  condition?: AttributeRule<TContext>;
+  condition?: RuleCondition<TContext>;
   effect?: 'allow' | 'deny';
   description?: string;
 }
@@ -30,8 +25,7 @@ export type RoleRule<
   TContext = any
 > =
   | Permission<TResource, TAction>
-  | RuleObject<TResource, TAction, TContext>
-  | AttributeRule<TContext>;
+  | RuleObject<TResource, TAction, TContext>;
 
 export type RoleHierarchy<TRole extends string = string> = Partial<Record<TRole, string[]>>;
 
@@ -52,6 +46,7 @@ export interface AccessControlConfig<
   roleHierarchy?: RoleHierarchy<TRole>;
   superRoles?: string[];
   normalizeRole?: (role: string) => string;
+  defaultFallback?: any;
 }
 
 export interface AccessEvaluator<
