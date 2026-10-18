@@ -464,7 +464,3 @@ const sql = generateRlsPolicy({
 | `AccessDeniedError` | Error | Standard 403 error class with action/resource context |
 
 ---
-
-## License
-
-MIT © [EnvKit](https://envkit.dev)
