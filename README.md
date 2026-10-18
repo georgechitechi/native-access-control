@@ -8,7 +8,7 @@ Zero-overhead, type-safe Role & Attribute-Based Access Control (**RBAC & ABAC**)
 
 Universal: works across **React**, **React Native / Expo**, **Next.js**, **Node.js**, and any TypeScript project.
 
-[![npm version](https://img.shields.io/badge/npm-v1.1.0-blue.svg)](https://www.npmjs.com/package/native-access-control)
+[![npm version](https://img.shields.io/badge/npm-v0.0.1-blue.svg)](https://www.npmjs.com/package/native-access-control)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Dependencies: 0](https://img.shields.io/badge/dependencies-0-green.svg)](package.json)
 [![Type-Safe](https://img.shields.io/badge/TypeScript-100%25-blue.svg)](src/types.ts)

@@ -27,6 +27,7 @@
       --sidebar-border-color: #1e293b;
       --sidebar-name-color: #f8fafc;
       --sidebar-name-font-weight: 700;
+      --sidebar-width: 19rem;
       --heading-color: #f1f5f9;
       --code-inline-background: #1e293b;
       --code-inline-color: #38bdf8;
@@ -34,6 +35,12 @@
       --table-row-odd-background: #0b0f19;
       --table-cell-border-color: #1e293b;
       --table-head-border-color: #334155;
+      --content-max-width: 85rem;
+    }
+
+    .markdown-section {
+      max-width: 85rem !important;
+      padding: 2.5rem 3.5rem 4rem !important;
     }
 
     .sidebar-nav strong {
@@ -57,6 +64,46 @@
       background: rgba(99, 102, 241, 0.2);
       color: #818cf8;
       border: 1px solid rgba(99, 102, 241, 0.4);
+    }
+
+    /* Modern Pagination Styling */
+    .docsify-pagination-container {
+      margin-top: 3.5rem;
+      border-top: 1px solid #1e293b;
+      padding-top: 2rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .pagination-item {
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      background: #0f172a;
+      transition: all 0.2s ease;
+      text-decoration: none !important;
+    }
+
+    .pagination-item:hover {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.1);
+      transform: translateY(-1px);
+    }
+
+    .pagination-item-title {
+      color: #f8fafc;
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin-top: 2px;
+    }
+
+    .pagination-item-subtitle {
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
   </style>
 </head>
@@ -83,6 +130,12 @@
         buttonText: 'Copy',
         errorText: 'Error',
         successText: 'Copied'
+      },
+      pagination: {
+        previousText: 'Previous',
+        nextText: 'Next',
+        crossChapter: true,
+        crossChapterText: true
       }
     }
   </script>
@@ -92,6 +145,7 @@
   <script src="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/js/docsify-themeable.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
 
   <!-- Prism Syntax Highlighting -->
   <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-core.min.js"></script>
