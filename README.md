@@ -2,8 +2,6 @@
   <img src="assets/banner.jpg" alt="native-access-control banner" width="100%" />
 </p>
 
-# native-access-control
-
 Zero-overhead, type-safe Role & Attribute-Based Access Control (**RBAC & ABAC**) with role inheritance, multi-tenant data scoping, and declarative UI guards.
 
 Universal: works across **React**, **React Native / Expo**, **Next.js**, **Node.js**, and any TypeScript project.

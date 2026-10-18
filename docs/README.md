@@ -2,8 +2,6 @@
   <img src="assets/banner.jpg" alt="native-access-control banner" width="100%" />
 </p>
 
-# native-access-control
-
 > Zero-overhead, type-safe Role & Attribute-Based Access Control (RBAC + ABAC) for React, React Native, Node.js, and TypeScript.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
