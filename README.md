@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.jpg" alt="native-access-control banner" width="100%" />
+</p>
+
 # native-access-control
 
 Zero-overhead, type-safe Role & Attribute-Based Access Control (**RBAC & ABAC**) with role inheritance, multi-tenant data scoping, and declarative UI guards.
