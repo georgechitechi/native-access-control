@@ -13,23 +13,19 @@ The cleanest way to set up access control in React is using `createAccessControl
 import { createAccessControl } from 'native-access-control/react';
 
 export type Role = 'admin' | 'editor' | 'viewer';
-export type Action =
-  | 'articles:read'
-  | 'articles:write'
-  | 'articles:publish'
-  | 'settings:manage';
+export type Resource = 'articles' | 'settings';
+export type Action = 'read' | 'write' | 'publish' | 'manage';
 
 export const {
+  engine,
   AccessProvider,
   useAccess,
   Can,
   Cannot,
   Protect,
   createRoleGuard,
-  evaluator,
-} = createAccessControl<Role, Action>({
-  roles: ['admin', 'editor', 'viewer'],
-  hierarchy: {
+} = createAccessControl<Role, Resource, Action>({
+  roleHierarchy: {
     admin: ['editor'],
     editor: ['viewer'],
   },
@@ -45,7 +41,7 @@ export const {
 
 ## `<AccessProvider>`
 
-Wrap your component tree to provide current roles and scoping context:
+Wrap your component tree to provide the active user's roles, super-user flag, and loading state:
 
 ```tsx
 import { AccessProvider } from './lib/access';
@@ -55,9 +51,9 @@ export function RootLayout({ children }) {
 
   return (
     <AccessProvider
-      roles={session.roles}         // e.g. ['editor']
-      scopeId={session.orgId}       // partition/organization ID
-      userId={session.user.id}      // active user ID
+      roles={session.roles}
+      isSuperUser={session.isSuperAdmin}
+      loading={session.isLoading}
     >
       {children}
     </AccessProvider>
@@ -69,21 +65,25 @@ export function RootLayout({ children }) {
 
 ## Declarative Components
 
+> [!NOTE]
+> `<Can>` and `<Protect>` fail closed (`false`) if no guard prop is provided or if only one of `action` / `resource` is passed.
+
 ### `<Can>`
 
-Renders its children only if the active user has permission to perform the action:
+Renders its children only if the active user satisfies the check:
 
 ```tsx
 import { Can } from './lib/access';
 
 // 1. Basic permission check
-<Can perform="articles:write">
+<Can action="write" resource="articles">
   <button onClick={handleCreate}>New Article</button>
 </Can>
 
 // 2. With fallback UI
 <Can
-  perform="settings:manage"
+  action="manage"
+  resource="settings"
   fallback={<p className="text-gray-500">Contact admin for settings</p>}
 >
   <SettingsPanel />
@@ -91,7 +91,8 @@ import { Can } from './lib/access';
 
 // 3. Dynamic ABAC context
 <Can
-  perform="articles:write"
+  action="write"
+  resource="articles"
   context={{ record: article }}
 >
   <button onClick={handleEdit}>Edit Article</button>
@@ -105,7 +106,7 @@ Inverted condition: renders its children when the user does **not** have permiss
 ```tsx
 import { Cannot } from './lib/access';
 
-<Cannot perform="articles:publish">
+<Cannot action="publish" resource="articles">
   <div className="banner">
     You do not have permission to publish this article. An editor must approve it.
   </div>
@@ -114,14 +115,15 @@ import { Cannot } from './lib/access';
 
 ### `<Protect>`
 
-Restricts rendering based on a required role (evaluates role inheritance automatically):
+Restricts rendering based on a required role, capability, or condition (evaluates role inheritance automatically):
 
 ```tsx
 import { Protect } from './lib/access';
 
 <Protect
-  role="admin"
+  roles="admin"
   fallback={<AccessDeniedScreen />}
+  loadingFallback={<Spinner />}
 >
   <AdminDashboard />
 </Protect>
@@ -138,14 +140,14 @@ import React from 'react';
 import { useAccess } from './lib/access';
 
 export function ArticleToolbar({ article }) {
-  const { can, hasRole, roles, scopeId, userId } = useAccess();
+  const { can, hasRole, roles } = useAccess();
 
-  const canEdit = can('articles:write', { record: article });
+  const canEdit = can('write', 'articles', { record: article });
   const isAdmin = hasRole('admin');
 
   return (
     <div className="toolbar">
-      <span>Logged in as: {userId} ({roles.join(', ')})</span>
+      <span>Roles: {roles.join(', ')}</span>
 
       {canEdit && <button>Edit</button>}
       {isAdmin && <button>Audit Logs</button>}
@@ -159,21 +161,24 @@ export function ArticleToolbar({ article }) {
 
 ---
 
-## Higher-Order Component: `createRoleGuard`
+## Role Guard Component: `createRoleGuard`
 
-Useful for protecting entire page or screen components:
+Useful for creating reusable role-gated wrapper components for screens or layouts:
 
 ```tsx
-import { createRoleGuard, evaluator } from './lib/access';
-
-function BillingPage() {
-  return <div>Sensitive Billing Information</div>;
-}
+import { createRoleGuard } from './lib/access';
 
 function UnauthorizedFallback() {
   return <div>Please ask an administrator for billing access.</div>;
 }
 
-// Export the protected screen
-export default createRoleGuard(evaluator, 'admin', UnauthorizedFallback)(BillingPage);
+const AdminOnly = createRoleGuard('admin', <UnauthorizedFallback />);
+
+export function BillingPage() {
+  return (
+    <AdminOnly>
+      <div>Sensitive Billing Information</div>
+    </AdminOnly>
+  );
+}
 ```

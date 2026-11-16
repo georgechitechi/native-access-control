@@ -45,12 +45,11 @@ bun add native-access-control
 ## 30-Second Overview
 
 ```typescript
-import { createAccessEvaluator } from 'native-access-control';
+import { createAccessEngine } from 'native-access-control';
 
 // 1. Define roles and permissions
-const ac = createAccessEvaluator({
-  roles: ['admin', 'manager', 'member'],
-  hierarchy: {
+const engine = createAccessEngine({
+  roleHierarchy: {
     admin: ['manager'],
     manager: ['member'],
   },
@@ -61,17 +60,22 @@ const ac = createAccessEvaluator({
   },
 });
 
+const manager = engine.buildEvaluator(['manager']);
+const member = engine.buildEvaluator(['member']);
+const admin = engine.buildEvaluator(['admin']);
+
 // 2. Evaluate permissions with role inheritance
-ac.can(['manager'], 'documents:read'); // true (inherited from member)
-ac.can(['member'], 'documents:delete'); // false
-ac.can(['admin'], 'settings:billing');  // true (wildcard match)
+manager.can('read', 'documents');   // true (inherited from member)
+member.can('delete', 'documents');  // false
+admin.can('billing', 'settings');   // true (wildcard match)
 
 // 3. Dynamic Attribute-Based Conditions (ABAC)
-const acWithAbac = createAccessEvaluator({
+const engineWithAbac = createAccessEngine({
   policies: {
     member: [
       {
-        action: 'documents:update',
+        action: 'update',
+        resource: 'documents',
         // User can only update if they own the record or it's a draft
         condition: (ctx) => ctx.user?.id === ctx.record?.authorId || ctx.record?.status === 'draft',
       },
@@ -79,7 +83,8 @@ const acWithAbac = createAccessEvaluator({
   },
 });
 
-acWithAbac.can(['member'], 'documents:update', {
+const abacMember = engineWithAbac.buildEvaluator(['member']);
+abacMember.can('update', 'documents', {
   user: { id: 'usr_123' },
   record: { authorId: 'usr_123', status: 'published' },
 }); // true
