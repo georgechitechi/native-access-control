@@ -5,6 +5,7 @@
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md",
@@ -28,9 +29,10 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc",
     "watch": "tsc -w",
-    "test": "tsc && node --no-warnings --test tests/index.test.ts",
+    "test": "npm run build && node --no-warnings --test tests/index.test.ts",
     "docs:serve": "npx docsify-cli serve docs",
     "prepublishOnly": "npm run test"
   },
@@ -47,7 +49,7 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "react": "^19.3.1",
     "typescript": "^7.0.2"

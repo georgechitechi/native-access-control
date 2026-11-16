@@ -434,8 +434,7 @@ test('Prisma adapter: toPrismaWhere and createPrismaScopeExtension', async () =>
 
   assert.deepEqual(interceptedArgs, {
     where: {
-      status: 'published',
-      scopeId: 'org_100',
+      AND: [{ status: 'published' }, { scopeId: 'org_100' }],
     },
   });
 });
@@ -581,6 +580,174 @@ test('tRPC adapter: createTrpcGuard', async () => {
         next: async () => 'ok',
       }),
     (err: any) => err instanceof AccessDeniedError
+  );
+});
+
+test('Hardening: role normalization in policies and hierarchy + config immutability', () => {
+  const initialPolicies = {
+    Admin: ['posts:delete'],
+    Editor: ['posts:write'],
+    Viewer: ['posts:read'],
+  };
+
+  const engine = createAccessEngine({
+    policies: initialPolicies,
+    roleHierarchy: {
+      Admin: ['Editor'],
+      Editor: ['Viewer'],
+    },
+  });
+
+  const evalAdmin = engine.buildEvaluator(['  admin  ']);
+  assert.equal(evalAdmin.can('delete', 'posts'), true);
+  assert.equal(evalAdmin.can('write', 'posts'), true);
+  assert.equal(evalAdmin.can('read', 'posts'), true);
+  assert.equal(evalAdmin.hasRole('VIEWER'), true);
+
+  engine.addPolicy('Viewer', 'comments:read');
+  assert.deepEqual(initialPolicies.Viewer, ['posts:read']);
+  assert.equal(evalAdmin.can('read', 'comments'), true);
+
+  // Invalid inputs fail closed
+  assert.equal(evalAdmin.can('', 'posts'), false);
+  assert.equal(evalAdmin.can('read', ''), false);
+});
+
+test('Hardening: buildScopeFilter fails closed when restricted user has no userId', () => {
+  assert.throws(
+    () => buildScopeFilter({ scopeId: 'org_1', isRestrictedRole: true }),
+    (err: any) => err instanceof AccessDeniedError && err.statusCode === 403
+  );
+});
+
+test('Hardening: Postgres SQL identifier validation and empty bypassRoles', () => {
+  assert.throws(
+    () =>
+      toPostgresWhere({
+        scopeId: 'org_1',
+        scopeKey: 'org_id; DROP TABLE users;--',
+      }),
+    /Invalid SQL identifier/
+  );
+
+  assert.throws(
+    () =>
+      generateRlsPolicy({
+        table: 'users" OR 1=1--',
+      }),
+    /Invalid SQL identifier/
+  );
+
+  const sql = generateRlsPolicy({
+    table: 'documents',
+    bypassRoles: [],
+  });
+  assert.ok(sql.includes('user_id = auth.uid()'));
+  assert.ok(!sql.includes('OR \n'));
+});
+
+test('Hardening: Prisma extension preserves caller where via AND', async () => {
+  const ext = createPrismaScopeExtension({
+    scopeId: 'ws_1',
+    scopeKey: 'workspaceId',
+    userId: 'u_1',
+    userKey: 'ownerId',
+    isRestrictedRole: true,
+    models: ['Document'],
+  });
+
+  let capturedArgs: any;
+  await ext.query.$allModels.$allOperations({
+    model: 'Document',
+    operation: 'findMany',
+    args: { where: { ownerId: 'other_user', published: true } },
+    query: async (args: any) => {
+      capturedArgs = args;
+      return [];
+    },
+  });
+
+  assert.deepEqual(capturedArgs.where, {
+    AND: [
+      { ownerId: 'other_user', published: true },
+      { workspaceId: 'ws_1', ownerId: 'u_1' },
+    ],
+  });
+});
+
+test('Hardening: HTTP adapters fail closed when evaluator is null/undefined', async () => {
+  // Express
+  let expressStatus = 0;
+  let expressBody: any;
+  const expMw = expressGuard(() => null as any, 'posts:read');
+  expMw(
+    {},
+    {
+      status(code: number) {
+        expressStatus = code;
+        return this;
+      },
+      json(body: any) {
+        expressBody = body;
+      },
+    },
+    () => {}
+  );
+  assert.equal(expressStatus, 403);
+  assert.equal(expressBody.error, 'Forbidden');
+
+  // Hono
+  const honoMw = honoGuard(() => undefined as any, 'posts:read');
+  const honoRes = await honoMw(
+    {
+      json(body: any, status: number) {
+        return { body, status };
+      },
+    },
+    async () => {}
+  );
+  assert.equal(honoRes.status, 403);
+
+  // Next.js protectAction
+  const securedAction = protectAction(
+    () => null as any,
+    'posts:delete',
+    async () => 'deleted'
+  );
+  await assert.rejects(() => securedAction(), (err: any) => err instanceof AccessDeniedError);
+
+  // tRPC
+  const trpcMw = createTrpcGuard(() => null as any, 'posts:read');
+  await assert.rejects(
+    () => trpcMw({ ctx: {}, next: async () => 'ok' }),
+    (err: any) => err instanceof AccessDeniedError
+  );
+});
+
+test('Hardening: checkRouteAccess normalizes paths, query strings, roles, and uses longest prefix', () => {
+  const routes = {
+    '/admin/*': 'Staff',
+    '/admin/billing/*': 'Admin',
+    '/reports': ['Editor', 'Staff'],
+  };
+
+  assert.equal(checkRouteAccess('/admin/users/?tab=1', ['staff'], routes).allowed, true);
+  assert.equal(checkRouteAccess('/admin/billing/invoices', ['staff'], routes).allowed, false);
+  assert.equal(checkRouteAccess('/admin/billing/invoices', ['admin'], routes).allowed, true);
+  assert.equal(checkRouteAccess('/admin/users/?tab=1', ['viewer'], routes, { fallbackRoute: '/403' }).redirectTo, '/403');
+  assert.equal(checkRouteAccess('/reports/#summary', ['  editor '], routes).allowed, true);
+});
+
+test('Hardening: toDrizzleWhere throws when scopeKey or userKey is missing on table', () => {
+  const mockTable = { scopeId: 'col_scope' };
+  assert.throws(
+    () =>
+      toDrizzleWhere(
+        mockTable,
+        { scopeId: 'org_1', userId: 'u_1', userKey: 'missing_col', isRestrictedRole: true },
+        { eq: (c, v) => ({ c, v }), and: (...cs): any => ({ and: cs }) }
+      ),
+    /does not contain column "missing_col"/
   );
 });
 

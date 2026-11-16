@@ -1,4 +1,3 @@
-import React from 'react';
 import { Can, type CanProps } from './Can';
 
 export type CannotProps<

@@ -1,4 +1,14 @@
 import type { ScopeFilterOptions } from '../scoping';
+import { buildScopeFilter } from '../scoping';
+
+const SQL_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+function assertSqlIdentifier(name: string, label: string): string {
+  if (!SQL_IDENTIFIER_RE.test(name)) {
+    throw new Error(`Invalid SQL identifier for ${label}: "${name}"`);
+  }
+  return name;
+}
 
 export interface PostgresWhereOptions extends ScopeFilterOptions {
   /**
@@ -51,20 +61,15 @@ export interface PostgresWhereResult {
  */
 export function toPostgresWhere(options: PostgresWhereOptions): PostgresWhereResult {
   const { startIndex = 1 } = options;
+  const filter = buildScopeFilter(options);
   const conditions: string[] = [];
   const params: any[] = [];
   let currentIndex = startIndex;
 
-  if (options.scopeId !== undefined && options.scopeId !== null) {
-    const col = options.scopeKey || 'scopeId';
+  for (const [key, value] of Object.entries(filter)) {
+    const col = assertSqlIdentifier(key, 'column');
     conditions.push(`${col} = $${currentIndex++}`);
-    params.push(options.scopeId);
-  }
-
-  if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {
-    const col = options.userKey || 'userId';
-    conditions.push(`${col} = $${currentIndex++}`);
-    params.push(options.userId);
+    params.push(value);
   }
 
   const where = conditions.join(' AND ');
@@ -109,20 +114,25 @@ export function generateRlsPolicy(options: RlsPolicyOptions): string {
     action = 'ALL',
   } = options;
 
-  const bypassClause = bypassRoles
-    .map(role => `(auth.jwt() -> 'app_metadata' ->> 'role') = '${role}'`)
-    .join(' OR ');
+  const safeTable = assertSqlIdentifier(table, 'table');
+  const safePolicyName = assertSqlIdentifier(policyName, 'policyName');
+  const safeScopeKey = assertSqlIdentifier(scopeKey, 'scopeKey');
+  const safeUserKey = assertSqlIdentifier(userKey, 'userKey');
+
+  const ownershipConditions = [
+    ...bypassRoles.map(role => `(auth.jwt() -> 'app_metadata' ->> 'role') = '${role.replace(/'/g, "''")}'`),
+    `${safeUserKey} = auth.uid()`,
+  ];
 
   return [
-    `ALTER TABLE "${table}" ENABLE ROW LEVEL SECURITY;`,
-    `DROP POLICY IF EXISTS "${policyName}" ON "${table}";`,
-    `CREATE POLICY "${policyName}" ON "${table}"`,
+    `ALTER TABLE "${safeTable}" ENABLE ROW LEVEL SECURITY;`,
+    `DROP POLICY IF EXISTS "${safePolicyName}" ON "${safeTable}";`,
+    `CREATE POLICY "${safePolicyName}" ON "${safeTable}"`,
     `FOR ${action}`,
     `USING (`,
-    `  ${scopeKey}::text = ${scopeJwtPath}::text`,
+    `  ${safeScopeKey}::text = ${scopeJwtPath}::text`,
     `  AND (`,
-    `    ${bypassClause}`,
-    `    OR ${userKey} = auth.uid()`,
+    `    ${ownershipConditions.join('\n    OR ')}`,
     `  )`,
     `);`,
   ].join('\n');

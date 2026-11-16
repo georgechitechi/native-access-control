@@ -6,73 +6,78 @@ Comprehensive reference for all functions, types, components, and classes in `na
 
 ## Core (`native-access-control`)
 
-### `createAccessEvaluator<TRole, TPermission>(config)`
+### `createAccessEngine<TRole, TResource, TAction, TContext>(config)`
 
-Creates an `AccessEvaluator` instance.
+Creates an access-control engine instance.
 
-#### Parameters: `AccessControlConfig<TRole, TPermission>`
-- `roles?: TRole[]` — Optional array of valid roles.
-- `hierarchy?: Record<TRole, string[]>` — Role inheritance mapping.
-- `policies?: Policies<TRole, TPermission>` — Mapping of roles to granted actions or ABAC rules.
-- `superRoles?: string[]` — Roles that bypass checks and have global access.
+#### Parameters: `AccessControlConfig<TRole, TResource, TAction, TContext>`
+- `policies: Policies<TRole, TResource, TAction, TContext>` — Mapping of roles to permission strings or `RuleObject`s.
+- `roleHierarchy?: RoleHierarchy<TRole>` — Role inheritance mapping.
+- `superRoles?: string[]` — Roles that bypass all checks.
+- `normalizeRole?: (role: string) => string` — Custom role normalizer (defaults to `trim().toLowerCase()`).
+- `defaultFallback?: any` — Default fallback node for `<Protect>` and `createRoleGuard`.
 
----
-
-### `AccessEvaluator<TRole, TPermission>`
-
-#### `.can(roles, action, context?)`
-Evaluates whether any role in `roles` (or inherited roles) grants `action`.
-- Returns `boolean`.
-- Evaluates explicit denies first (`!action` or `{ effect: 'deny' }`).
-- Evaluates ABAC conditions (`condition(context)`).
-
-#### `.hasRole(roles, targetRole)`
-Checks if `roles` contains or transitively inherits `targetRole`.
-- Returns `boolean`.
-
-#### `.getPolicies()`
-Returns a snapshot copy of current active policies.
-
-#### `.setPolicies(policies)`
-Updates the policies at runtime.
+#### Engine Methods
+- `.evaluate(userRoles, action, resource, context?, isSuperUser?)`: `boolean`
+- `.buildEvaluator(userRoles, isSuperUser?)`: `AccessEvaluator<TRole, TResource, TAction, TContext>`
+- `.addPolicy(role, rule)`: `void`
+- `.setPolicies(policies)`: `void`
+- `.getPolicies()`: `Policies<...>`
 
 ---
 
-### `scopeRecords<T>(records, options)`
+### `AccessEvaluator<TRole, TResource, TAction, TContext>`
+
+- `.can(action, resource, context?)`: `boolean`
+- `.cannot(action, resource, context?)`: `boolean`
+- `.canAll(checks, context?)`: `boolean`
+- `.canAny(checks, context?)`: `boolean`
+- `.hasRole(roleOrRoles)`: `boolean`
+- `.hasAllRoles(roles)`: `boolean`
+- `.hasAnyRole(roles)`: `boolean`
+- `.roles`: `TRole[]`
+- `.effectiveRoles`: `TRole[]`
+
+---
+
+### `scopeRecords<TRecord>(records, options)`
 Filters an in-memory array of records by partition and/or user ownership.
 
-#### Options: `ScopeOptions`
-- `scopeId?: string` — Partition value.
-- `scopeKey?: string` — Partition property name (defaults to `'scopeId'`).
-- `userId?: string` — User ownership value.
-- `userKey?: string` — User ownership property name (defaults to `'userId'`).
+#### Options: `ScopeRecordsOptions<TRecord>`
+- `scopeId?: any` — Partition value.
+- `scopeKey?: keyof TRecord` — Partition property name (defaults to `'scopeId'`).
+- `userId?: any` — User ownership value.
+- `userKey?: keyof TRecord` — User ownership property name (defaults to `'userId'`).
+- `isRestrictedRole?: boolean | ((roles?: string[]) => boolean)` — Applies ownership check when `true`.
+- `roles?: string[]` — Passed to `isRestrictedRole` when it is a function.
+- `predicate?: (record: TRecord) => boolean` — Optional custom filter.
+- `fallbackToEmpty?: boolean` — Returns `[]` if restricted and `userId` is missing (defaults to `true`).
 
 ---
 
 ### `buildScopeFilter(options)`
-Returns an object suitable for ORM query `where` clauses (e.g. Prisma, Drizzle, TypeORM).
+Returns an object suitable for ORM query `where` clauses (e.g. Prisma, Drizzle, Mongoose). Throws `AccessDeniedError` if `isRestrictedRole` is `true` and `userId` is `undefined` or `null`.
 
 ---
 
-### `filterRecord<T>(record, allowedFields)`
-Picks only the specified keys from a record object.
-- Returns `Partial<T>`.
+### `filterRecord<TRecord>(record, options)`
+Projects `allowedFields` (or `'*'`) and omits `omitFields` from a record object, returning `Partial<TRecord>`.
 
 ---
 
-### `checkRouteAccess(routeRoles, userRoles, currentRoute)`
-Matches a URL path against a routing policy table. Supports sub-path wildcards (`/admin/*`) and global wildcards (`*`).
-- Returns `boolean`.
+### `checkRouteAccess(pathname, userRoles, routes, options?)`
+Matches a URL path against a routing policy table. Normalizes query strings, hashes, trailing slashes, and roles, and evaluates the longest matching `/*` prefix first.
+- Returns `{ allowed: boolean; redirectTo?: string }`.
 
 ---
 
-### `assertCan(evaluator, roles, action, context?, message?)`
-Throws `AccessDeniedError` (HTTP 403) if `evaluator.can(roles, action, context)` is `false`.
+### `assertCan(evaluator, action, resource, context?, customMessage?)`
+Throws `AccessDeniedError` (HTTP 403) if `evaluator` is missing or `evaluator.can(action, resource, context)` is `false`.
 
 ---
 
-### `assertHasRole(evaluator, roles, targetRole, message?)`
-Throws `AccessDeniedError` (HTTP 403) if `evaluator.hasRole(roles, targetRole)` is `false`.
+### `assertHasRole(evaluator, roleOrRoles, customMessage?)`
+Throws `AccessDeniedError` (HTTP 403) if `evaluator` is missing or `evaluator.hasRole(roleOrRoles)` is `false`.
 
 ---
 
@@ -80,72 +85,72 @@ Throws `AccessDeniedError` (HTTP 403) if `evaluator.hasRole(roles, targetRole)` 
 Custom Error class.
 - `statusCode`: `403`
 - `action`: `string | undefined`
-- `roles`: `string[]`
+- `resource`: `string | undefined`
 
 ---
 
 ## React (`native-access-control/react`)
 
-### `createAccessControl<TRole, TPermission>(config)`
+### `createAccessControl<TRole, TResource, TAction, TContext>(config)`
 Returns a typed React suite:
+- `engine`
 - `AccessProvider`
 - `useAccess`
 - `Can`
 - `Cannot`
 - `Protect`
 - `createRoleGuard`
-- `evaluator`
+- `scopeRecords`
 
 ---
 
 ### `<AccessProvider>`
 Props:
-- `roles: string[]` — Active user's roles.
-- `scopeId?: string` — Active partition/organization ID.
-- `userId?: string` — Active user ID.
-- `evaluator?: AccessEvaluator` — Optional evaluator instance (defaults to pre-configured instance).
+- `roles?: TRole[]` — Active user's roles.
+- `isSuperUser?: boolean` — Bypass all checks.
+- `loading?: boolean` — Loading state flag.
 - `children: ReactNode`
 
 ---
 
 ### `<Can>`
-Props:
-- `perform: TPermission` — The required permission.
-- `context?: Record<string, any>` — Optional ABAC context.
-- `fallback?: ReactNode` — Rendered if denied.
-- `children: ReactNode` — Rendered if granted.
+Props (fails closed if no guard prop or partial `action`/`resource` is provided):
+- `action?: TAction | string`
+- `resource?: TResource | string`
+- `roles?: TRole | TRole[] | string`
+- `condition?: boolean`
+- `context?: TContext`
+- `not?: boolean`
+- `fallback?: ReactNode`
+- `children?: ReactNode | ((allowed: boolean) => ReactNode)`
 
 ---
 
 ### `<Cannot>`
-Props:
-- `perform: TPermission` — Permission to check.
-- `context?: Record<string, any>` — Optional ABAC context.
-- `children: ReactNode` — Rendered if denied.
+Same props as `<Can>` (without `not`); renders `children` when access is NOT granted.
 
 ---
 
 ### `<Protect>`
-Props:
-- `role: TRole` — Required role.
-- `fallback?: ReactNode` — Rendered if user lacks role.
-- `children: ReactNode` — Rendered if role is present/inherited.
+Props (fails closed if no guard prop or partial `action`/`resource` is provided):
+- `action?: TAction | string`
+- `resource?: TResource | string`
+- `roles?: TRole | TRole[] | string`
+- `condition?: boolean`
+- `context?: TContext`
+- `fallback?: ReactNode`
+- `loadingFallback?: ReactNode`
+- `children: ReactNode`
 
 ---
 
-### `useAccess<TRole, TPermission>()`
-Returns:
-- `can(action, context?)`: `boolean`
-- `hasRole(targetRole)`: `boolean`
-- `roles`: `string[]`
-- `scopeId`: `string | undefined`
-- `userId`: `string | undefined`
-- `evaluator`: `AccessEvaluator`
+### `useAccess<TRole, TResource, TAction, TContext>()`
+Returns `AccessEvaluator` methods/fields plus `loading: boolean` and `isSuperUser: boolean`.
 
 ---
 
-### `createRoleGuard(evaluator, requiredRole, FallbackComponent?)`
-Higher-Order Component returning `(WrappedComponent) => React.FC`.
+### `createRoleGuard(allowedRoles, defaultFallback?)`
+Returns a React guard component `({ children, fallback? }) => ReactElement | null`.
 
 ---
 

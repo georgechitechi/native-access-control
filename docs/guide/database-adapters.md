@@ -33,6 +33,10 @@ export async function getPosts(userContext: { orgId: string; userId: string; isA
 }
 ```
 
+> [!NOTE]
+> `toDrizzleWhere()` throws an `Error` if `scopeKey` or `userKey` does not exist on `table`, and throws `AccessDeniedError` if `isRestrictedRole` is `true` without a `userId`.
+```
+
 ---
 
 ## 2. Prisma Client
@@ -81,7 +85,7 @@ export function getScopedPrisma(session: { orgId: string; userId: string }) {
 // In your application logic:
 const prisma = getScopedPrisma(session);
 
-// Automatically scoped with { orgId: session.orgId, authorId: session.userId }
+// Automatically scoped using AND: { AND: [callerWhere, { orgId: session.orgId, authorId: session.userId }] }
 const docs = await prisma.document.findMany();
 ```
 

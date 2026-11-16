@@ -19,16 +19,23 @@ const routePermissions = {
   '/': '*', // Public access for any authenticated or anonymous role
 };
 
-// Check access
-checkRouteAccess(routePermissions, ['editor'], '/admin/users'); // false
-checkRouteAccess(routePermissions, ['admin'], '/admin/users');  // true
-checkRouteAccess(routePermissions, ['editor'], '/dashboard/overview'); // true
+// Check access (returns { allowed, redirectTo })
+checkRouteAccess('/admin/users', ['editor'], routePermissions, { fallbackRoute: '/login' });
+// => { allowed: false, redirectTo: '/login' }
+
+checkRouteAccess('/admin/users', ['admin'], routePermissions);
+// => { allowed: true, redirectTo: undefined }
+
+checkRouteAccess('/dashboard/overview?tab=1', ['editor'], routePermissions);
+// => { allowed: true, redirectTo: undefined }
 ```
 
-### Route Wildcards
+### Route Wildcards & Matching
 
-- `*` or `'*'` matches any role (public route).
-- `/path/*` matches any sub-path (e.g. `/admin/*` matches `/admin`, `/admin/settings`, `/admin/users/123`).
+- `*` matches any role (public route).
+- `/path/*` matches `/path` and any sub-path (e.g. `/admin/*` matches `/admin`, `/admin/settings`, `/admin/users/123`).
+- Query strings, hashes, and trailing slashes are normalized automatically, and the **longest matching `/*` prefix** always wins (e.g. `/admin/billing/*` takes precedence over `/admin/*`).
+- Role matching is case-insensitive and whitespace-trimmed by default (customizable via `options.normalizeRole`).
 
 ### Next.js Middleware Example
 
@@ -47,10 +54,12 @@ export function middleware(req: NextRequest) {
   const userRoles = req.cookies.get('user_roles')?.value.split(',') || [];
   const pathname = req.nextUrl.pathname;
 
-  const allowed = checkRouteAccess(ROUTE_ROLES, userRoles, pathname);
+  const { allowed, redirectTo } = checkRouteAccess(pathname, userRoles, ROUTE_ROLES, {
+    fallbackRoute: '/unauthorized',
+  });
 
   if (!allowed) {
-    return NextResponse.redirect(new URL('/unauthorized', req.url));
+    return NextResponse.redirect(new URL(redirectTo!, req.url));
   }
 
   return NextResponse.next();
@@ -78,14 +87,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     const currentRoute = `/${segments.join('/')}`;
-    const allowed = checkRouteAccess(
-      ROUTE_PERMISSIONS,
+    const { allowed, redirectTo } = checkRouteAccess(
+      currentRoute,
       user?.roles || [],
-      currentRoute
+      ROUTE_PERMISSIONS,
+      { fallbackRoute: '/unauthorized' }
     );
 
-    if (!allowed) {
-      router.replace('/unauthorized');
+    if (!allowed && redirectTo) {
+      router.replace(redirectTo);
     }
   }, [segments, user]);
 
@@ -103,15 +113,14 @@ When building API endpoints, server actions, or mutation handlers, you often wan
 
 ```typescript
 import { assertCan, AccessDeniedError } from 'native-access-control';
-import { evaluator } from './access';
 
-export async function deleteUserMutation(actorRoles: string[], targetUserId: string) {
+export async function deleteUserMutation(evaluator: any, targetUserId: string) {
   try {
     assertCan(
       evaluator,
-      actorRoles,
-      'users:delete',
-      undefined,
+      'delete',
+      'users',
+      { targetUserId },
       'You are not permitted to delete users.'
     );
 

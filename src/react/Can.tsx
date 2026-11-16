@@ -1,18 +1,14 @@
 import React from 'react';
 import { useAccess } from './context';
+import { evaluateGuardProps, type GuardCriteriaProps } from './guard';
 
 export interface CanProps<
   TRole extends string = string,
   TResource extends string = string,
   TAction extends string = string,
   TContext = any
-> {
+> extends GuardCriteriaProps<TRole, TResource, TAction, TContext> {
   children?: React.ReactNode | ((allowed: boolean) => React.ReactNode);
-  action?: TAction | string;
-  resource?: TResource | string;
-  roles?: TRole | TRole[] | string;
-  condition?: boolean;
-  context?: TContext;
   not?: boolean;
   fallback?: React.ReactNode;
 }
@@ -39,17 +35,10 @@ export function Can<
 
   if (loading) return null;
 
-  let isAllowed = false;
-
-  if (condition !== undefined) {
-    isAllowed = condition;
-  } else if (action && resource) {
-    isAllowed = can(action, resource, context);
-  } else if (roles) {
-    isAllowed = hasRole(roles as any);
-  } else {
-    isAllowed = true;
-  }
+  const isAllowed = evaluateGuardProps(
+    { condition, action, resource, roles, context },
+    { can, hasRole }
+  );
 
   const finalAllowed = not ? !isAllowed : isAllowed;
 

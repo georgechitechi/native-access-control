@@ -1,3 +1,5 @@
+import { AccessDeniedError } from './assertions';
+
 export interface ScopeRecordsOptions<TRecord> {
   /**
    * Boundary / Group identifier to isolate records (e.g. organization, business, workspace, project).
@@ -91,7 +93,10 @@ export function buildScopeFilter(options: ScopeFilterOptions): Record<string, an
     filter[options.scopeKey || 'scopeId'] = options.scopeId;
   }
 
-  if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {
+  if (options.isRestrictedRole) {
+    if (options.userId === undefined || options.userId === null) {
+      throw new AccessDeniedError('Access Denied: userId is required for restricted role queries.');
+    }
     filter[options.userKey || 'userId'] = options.userId;
   }
 
@@ -116,9 +121,15 @@ export function filterRecord<TRecord extends Record<string, any>>(
   const allowedSet = allowedFields === '*' ? null : new Set(allowedFields as string[]);
 
   for (const [key, value] of Object.entries(record)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     if (omitSet.has(key)) continue;
     if (allowedSet === null || allowedSet.has(key)) {
-      (result as any)[key] = value;
+      Object.defineProperty(result, key, {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
   }
 

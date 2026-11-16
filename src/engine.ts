@@ -19,20 +19,31 @@ export function resolveEffectiveRoles<TRole extends string = string>(
   hierarchy: RoleHierarchy<TRole> = {},
   normalize: (role: string) => string = defaultNormalize
 ): TRole[] {
+  if (!Array.isArray(userRoles)) return [];
+
+  const normalizedHierarchy: Record<string, string[]> = {};
+  for (const [key, children] of Object.entries(hierarchy)) {
+    if (!Array.isArray(children)) continue;
+    const normKey = normalize(key);
+    if (!normalizedHierarchy[normKey]) normalizedHierarchy[normKey] = [];
+    normalizedHierarchy[normKey].push(...children);
+  }
+
   const result: TRole[] = [];
   const visited = new Set<string>();
   const queue = [...userRoles];
 
   while (queue.length > 0) {
-    const rawRole = queue.shift()!;
+    const rawRole = queue.shift();
+    if (typeof rawRole !== 'string' || !rawRole.trim()) continue;
     const norm = normalize(rawRole);
     if (!visited.has(norm)) {
       visited.add(norm);
       result.push(rawRole as TRole);
 
-      const directChildren = hierarchy[rawRole as TRole] || [];
+      const directChildren = normalizedHierarchy[norm] || [];
       for (const child of directChildren) {
-        if (!visited.has(normalize(child))) {
+        if (typeof child === 'string' && !visited.has(normalize(child))) {
           queue.push(child as TRole);
         }
       }
@@ -97,8 +108,35 @@ export function createAccessEngine<
   TContext = any
 >(config: AccessControlConfig<TRole, TResource, TAction, TContext>) {
   const normalize = config.normalizeRole || defaultNormalize;
-  let policies: Policies<TRole, TResource, TAction, TContext> = { ...config.policies };
-  let hierarchy: RoleHierarchy<TRole> = { ...(config.roleHierarchy || {}) };
+
+  const clonePolicies = (
+    source: Policies<TRole, TResource, TAction, TContext>
+  ): Policies<TRole, TResource, TAction, TContext> => {
+    const copy: Policies<TRole, TResource, TAction, TContext> = {};
+    for (const [role, rules] of Object.entries(source)) {
+      if (Array.isArray(rules)) {
+        copy[role as TRole] = [...rules];
+      }
+    }
+    return copy;
+  };
+
+  const buildNormalizedPolicies = (
+    source: Policies<TRole, TResource, TAction, TContext>
+  ): Record<string, RoleRule<TResource, TAction, TContext>[]> => {
+    const map: Record<string, RoleRule<TResource, TAction, TContext>[]> = {};
+    for (const [role, rules] of Object.entries(source)) {
+      if (!Array.isArray(rules)) continue;
+      const norm = normalize(role);
+      if (!map[norm]) map[norm] = [];
+      map[norm].push(...rules);
+    }
+    return map;
+  };
+
+  let policies = clonePolicies(config.policies);
+  let normalizedPolicies = buildNormalizedPolicies(policies);
+  const hierarchy: RoleHierarchy<TRole> = { ...(config.roleHierarchy || {}) };
   const superRolesSet = new Set((config.superRoles || []).map(r => normalize(r)));
 
   return {
@@ -109,11 +147,16 @@ export function createAccessEngine<
       context?: TContext,
       isSuperUser = false
     ): boolean {
+      if (typeof action !== 'string' || typeof resource !== 'string' || !action || !resource) {
+        return false;
+      }
+
       if (isSuperUser) return true;
+      if (!Array.isArray(userRoles)) return false;
 
       // Check superRoles
       for (const role of userRoles) {
-        if (superRolesSet.has(normalize(role))) return true;
+        if (typeof role === 'string' && superRolesSet.has(normalize(role))) return true;
       }
 
       const effectiveRoles = resolveEffectiveRoles(userRoles, hierarchy, normalize);
@@ -121,7 +164,7 @@ export function createAccessEngine<
       let isAllowed = false;
 
       for (const role of effectiveRoles) {
-        const rules = policies[role] || [];
+        const rules = normalizedPolicies[normalize(role)] || [];
         for (const rule of rules) {
           const { matches, isDeny } = matchesRule(rule, action, resource, context);
           if (matches) {
@@ -199,14 +242,18 @@ export function createAccessEngine<
     addPolicy(role: TRole, rule: RoleRule<TResource, TAction, TContext>): void {
       if (!policies[role]) policies[role] = [];
       policies[role]!.push(rule);
+      const norm = normalize(role);
+      if (!normalizedPolicies[norm]) normalizedPolicies[norm] = [];
+      normalizedPolicies[norm].push(rule);
     },
 
     setPolicies(newPolicies: Policies<TRole, TResource, TAction, TContext>): void {
-      policies = { ...newPolicies };
+      policies = clonePolicies(newPolicies);
+      normalizedPolicies = buildNormalizedPolicies(policies);
     },
 
     getPolicies(): Policies<TRole, TResource, TAction, TContext> {
-      return { ...policies };
+      return clonePolicies(policies);
     },
   };
 }

@@ -1,4 +1,5 @@
 import { assertCan } from '../assertions';
+import { resolveGuardArgs } from './shared';
 
 export interface TrpcGuardOptions<TContext = any> {
   createError?: (message: string) => Error;
@@ -21,25 +22,11 @@ export function createTrpcGuard<TContext = any>(
   resourceOrOptions?: string | TrpcGuardOptions<TContext>,
   maybeOptions?: TrpcGuardOptions<TContext>
 ) {
-  let action: string;
-  let resource: string;
-  let options: TrpcGuardOptions<TContext> = {};
-
-  if (typeof resourceOrOptions === 'string') {
-    action = actionOrPermission;
-    resource = resourceOrOptions;
-    options = maybeOptions || {};
-  } else {
-    if (actionOrPermission.includes(':')) {
-      const [r, a] = actionOrPermission.split(':');
-      resource = r;
-      action = a;
-    } else {
-      action = actionOrPermission;
-      resource = '*';
-    }
-    options = (resourceOrOptions as TrpcGuardOptions<TContext>) || {};
-  }
+  const { action, resource, options } = resolveGuardArgs<TrpcGuardOptions<TContext>>(
+    actionOrPermission,
+    resourceOrOptions,
+    maybeOptions
+  );
 
   return async ({ ctx, next }: { ctx: TContext; next: () => Promise<any> }) => {
     const evaluator =

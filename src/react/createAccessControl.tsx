@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { createAccessEngine } from '../engine';
-import { scopeRecords as baseScopeRecords, type ScopeRecordsOptions } from '../scoping';
+import { scopeRecords as baseScopeRecords } from '../scoping';
 import type { AccessControlConfig } from '../types';
 import { Can, type CanProps } from './Can';
 import { Cannot, type CannotProps } from './Cannot';
@@ -11,7 +11,7 @@ import {
 } from './context';
 import { Protect, type ProtectProps } from './Protect';
 
-export interface TypedAccessProviderProps<TRole extends string = string, TContext = any> {
+export interface TypedAccessProviderProps<TRole extends string = string> {
   children: React.ReactNode;
   roles?: TRole[];
   isSuperUser?: boolean;
@@ -23,6 +23,8 @@ export interface RoleGuardProps {
   fallback?: React.ReactNode;
 }
 
+const EMPTY_ROLES: any[] = [];
+
 export function createAccessControl<
   TRole extends string = string,
   TResource extends string = string,
@@ -33,10 +35,10 @@ export function createAccessControl<
 
   function TypedAccessProvider({
     children,
-    roles = [],
+    roles = EMPTY_ROLES as TRole[],
     isSuperUser = false,
     loading = false,
-  }: TypedAccessProviderProps<TRole, TContext>) {
+  }: TypedAccessProviderProps<TRole>) {
     const evaluator = useMemo(() => {
       return engine.buildEvaluator(roles, isSuperUser);
     }, [roles, isSuperUser]);

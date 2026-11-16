@@ -48,18 +48,22 @@ export function createPrismaScopeExtension(config: PrismaScopeExtensionConfig) {
             'findMany',
             'update',
             'updateMany',
+            'upsert',
             'delete',
             'deleteMany',
             'count',
             'aggregate',
           ];
 
-          if (scopedOperations.includes(operation)) {
+          if (scopedOperations.includes(operation) && Object.keys(whereFilter).length > 0) {
             args = args || {};
-            args.where = {
-              ...(args.where || {}),
-              ...whereFilter,
-            };
+            if (args.where && Object.keys(args.where).length > 0) {
+              args.where = {
+                AND: [args.where, whereFilter],
+              };
+            } else {
+              args.where = { ...whereFilter };
+            }
           }
 
           return query(args);

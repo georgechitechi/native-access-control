@@ -1,4 +1,5 @@
 import type { ScopeFilterOptions } from '../scoping';
+import { buildScopeFilter } from '../scoping';
 
 export type SupabaseMatchFilter = Record<string, any>;
 
@@ -21,17 +22,7 @@ export interface FilterableQuery {
  * const { data } = await supabase.from('posts').select().match(filter);
  */
 export function toSupabaseMatch(options: ScopeFilterOptions): SupabaseMatchFilter {
-  const match: SupabaseMatchFilter = {};
-
-  if (options.scopeId !== undefined && options.scopeId !== null) {
-    match[options.scopeKey || 'scopeId'] = options.scopeId;
-  }
-
-  if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {
-    match[options.userKey || 'userId'] = options.userId;
-  }
-
-  return match;
+  return buildScopeFilter(options);
 }
 
 /**
@@ -54,14 +45,8 @@ export function applySupabaseScope<T extends FilterableQuery>(
   options: ScopeFilterOptions
 ): T {
   let modifiedQuery = query;
-
-  if (options.scopeId !== undefined && options.scopeId !== null) {
-    modifiedQuery = modifiedQuery.eq(options.scopeKey || 'scopeId', options.scopeId);
+  for (const [column, value] of Object.entries(buildScopeFilter(options))) {
+    modifiedQuery = modifiedQuery.eq(column, value);
   }
-
-  if (options.isRestrictedRole && options.userId !== undefined && options.userId !== null) {
-    modifiedQuery = modifiedQuery.eq(options.userKey || 'userId', options.userId);
-  }
-
   return modifiedQuery;
 }

@@ -1,4 +1,5 @@
 import { assertCan, AccessDeniedError } from '../assertions';
+import { formatAccessDeniedBody, resolveGuardArgs } from './shared';
 
 export interface ExpressGuardOptions {
   /**
@@ -23,25 +24,11 @@ export function expressGuard(
   resourceOrOptions?: string | ExpressGuardOptions,
   maybeOptions?: ExpressGuardOptions
 ) {
-  let action: string;
-  let resource: string;
-  let options: ExpressGuardOptions = {};
-
-  if (typeof resourceOrOptions === 'string') {
-    action = actionOrPermission;
-    resource = resourceOrOptions;
-    options = maybeOptions || {};
-  } else {
-    if (actionOrPermission.includes(':')) {
-      const [r, a] = actionOrPermission.split(':');
-      resource = r;
-      action = a;
-    } else {
-      action = actionOrPermission;
-      resource = '*';
-    }
-    options = (resourceOrOptions as ExpressGuardOptions) || {};
-  }
+  const { action, resource, options } = resolveGuardArgs<ExpressGuardOptions>(
+    actionOrPermission,
+    resourceOrOptions,
+    maybeOptions
+  );
 
   return (req: any, res: any, next: (err?: any) => void) => {
     try {
@@ -55,13 +42,7 @@ export function expressGuard(
     } catch (err) {
       if (err instanceof AccessDeniedError) {
         if (typeof res.status === 'function' && typeof res.json === 'function') {
-          return res.status(403).json({
-            statusCode: 403,
-            error: 'Forbidden',
-            message: err.message,
-            action: err.action,
-            resource: err.resource,
-          });
+          return res.status(err.statusCode).json(formatAccessDeniedBody(err));
         }
       }
       next(err);

@@ -71,8 +71,12 @@ const userFilter = buildScopeFilter({
   scopeKey: 'workspaceId',
   userId: 'user_456',
   userKey: 'ownerId',
+  isRestrictedRole: true,
 });
 // => { workspaceId: 'workspace_123', ownerId: 'user_456' }
+
+// Fail-closed: if isRestrictedRole is true and userId is missing/null,
+// buildScopeFilter throws AccessDeniedError (403) instead of returning an unfiltered query.
 
 // Use directly in Prisma:
 const posts = await prisma.post.findMany({
@@ -100,6 +104,9 @@ const userRecord = {
 
 // Only expose safe fields
 const safeUser = filterRecord(userRecord, ['id', 'name', 'email', 'role']);
+const safeUser = filterRecord(userRecord, {
+  allowedFields: ['id', 'name', 'email', 'role'],
+});
 
 // safeUser is:
 // {

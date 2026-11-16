@@ -1,4 +1,5 @@
 import { assertCan, AccessDeniedError } from '../assertions';
+import { formatAccessDeniedBody, resolveGuardArgs } from './shared';
 
 export interface HonoGuardOptions {
   /**
@@ -22,25 +23,11 @@ export function honoGuard(
   resourceOrOptions?: string | HonoGuardOptions,
   maybeOptions?: HonoGuardOptions
 ) {
-  let action: string;
-  let resource: string;
-  let options: HonoGuardOptions = {};
-
-  if (typeof resourceOrOptions === 'string') {
-    action = actionOrPermission;
-    resource = resourceOrOptions;
-    options = maybeOptions || {};
-  } else {
-    if (actionOrPermission.includes(':')) {
-      const [r, a] = actionOrPermission.split(':');
-      resource = r;
-      action = a;
-    } else {
-      action = actionOrPermission;
-      resource = '*';
-    }
-    options = (resourceOrOptions as HonoGuardOptions) || {};
-  }
+  const { action, resource, options } = resolveGuardArgs<HonoGuardOptions>(
+    actionOrPermission,
+    resourceOrOptions,
+    maybeOptions
+  );
 
   return async (c: any, next: () => Promise<void>) => {
     try {
@@ -53,16 +40,7 @@ export function honoGuard(
       await next();
     } catch (err) {
       if (err instanceof AccessDeniedError) {
-        return c.json(
-          {
-            statusCode: 403,
-            error: 'Forbidden',
-            message: err.message,
-            action: err.action,
-            resource: err.resource,
-          },
-          403
-        );
+        return c.json(formatAccessDeniedBody(err), err.statusCode);
       }
       throw err;
     }
