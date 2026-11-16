@@ -3,398 +3,158 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>Type-Safe RBAC & ABAC</title>
+  <title>Native Access Control — Type-Safe RBAC & ABAC</title>
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   <meta name="description"
     content="Zero-overhead, type-safe Role & Attribute-Based Access Control for React, React Native, Node.js, and TypeScript.">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
 
-  <!-- Modern Google Fonts -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
     rel="stylesheet">
 
-  <!-- Docsify Themeable (Modern, Clean) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.css">
-
+  <!-- Docsify Theme & Dark/Light Switcher -->
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-darklight-theme@latest/dist/style.min.css">
   <style>
     :root {
-      --base-font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --docsify-font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --code-font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
-      --base-font-size: 15px;
-      --base-line-height: 1.75;
-      --base-background-color: #070b14;
-      --base-color: #cbd5e1;
-      --theme-color: #818cf8;
-      --link-color: #818cf8;
-      --link-color--hover: #a5b4fc;
-      --cover-background: #070b14;
-      --sidebar-background: #0b101b;
-      --sidebar-border-color: rgba(148, 163, 184, 0.12);
-      --sidebar-name-color: #f8fafc;
-      --sidebar-name-font-weight: 700;
-      --sidebar-name-font-size: 1.15rem;
-      --sidebar-width: 18.5rem;
-      --sidebar-nav-link-color: #94a3b8;
-      --sidebar-nav-link-color--hover: #f1f5f9;
-      --sidebar-nav-link-color--active: #a5b4fc;
-      --sidebar-nav-link-background--active: rgba(99, 102, 241, 0.14);
-      --sidebar-nav-link-border-radius: 6px;
-      --heading-color: #f8fafc;
-      --heading-font-weight: 700;
-      --code-inline-background: rgba(99, 102, 241, 0.12);
-      --code-inline-color: #93c5fd;
-      --code-inline-border-radius: 5px;
-      --code-block-background: #0d1322;
-      --code-theme-background: #0d1322;
-      --table-row-odd-background: rgba(15, 23, 42, 0.6);
-      --table-row-even-background: transparent;
-      --table-cell-border-color: rgba(148, 163, 184, 0.14);
-      --table-head-border-color: rgba(148, 163, 184, 0.25);
-      --table-head-background: rgba(30, 41, 59, 0.55);
-      --blockquote-background: rgba(99, 102, 241, 0.06);
-      --blockquote-border-color: #6366f1;
-      --content-max-width: 76rem;
-    }
-
-    html {
-      scroll-behavior: smooth;
     }
 
     body {
-      background-color: var(--base-background-color);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      font-family: var(--docsify-font-family);
     }
 
-    /* Subtle custom scrollbars */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    code,
+    pre {
+      font-family: var(--code-font-family) !important;
     }
 
-    ::-webkit-scrollbar-track {
-      background: transparent;
+    .sidebar {
+      font-weight: 500;
     }
 
-    ::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.22);
-      border-radius: 999px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(148, 163, 184, 0.4);
-    }
-
-    /* Main Content Layout & Typography */
-    .markdown-section {
-      max-width: var(--content-max-width) !important;
-      margin: 0 auto !important;
-      padding: 2.75rem 3rem 5rem !important;
+    .app-name {
+      display: none !important;
     }
 
     .markdown-section h1 {
-      font-size: 2.15rem;
+      font-weight: 800;
       letter-spacing: -0.025em;
-      margin-bottom: 1.25rem;
-      color: #f8fafc;
     }
 
     .markdown-section h2 {
-      font-size: 1.45rem;
-      letter-spacing: -0.015em;
-      margin-top: 2.5rem;
-      margin-bottom: 1rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-      color: #f1f5f9;
-    }
-
-    .markdown-section h3 {
-      font-size: 1.15rem;
-      margin-top: 1.75rem;
-      color: #e2e8f0;
-    }
-
-    .markdown-section hr {
-      border: none;
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      margin: 2.25rem 0;
-    }
-
-    .markdown-section strong {
-      color: #f1f5f9;
-      font-weight: 600;
-    }
-
-    .markdown-section img {
-      border-radius: 12px;
-      border: 1px solid rgba(148, 163, 184, 0.15);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
-    }
-
-    /* Code Blocks & Inline Code */
-    .markdown-section code {
-      padding: 0.15em 0.42em;
-      font-size: 0.87em;
-      border: 1px solid rgba(99, 102, 241, 0.2);
-    }
-
-    .markdown-section pre {
-      background: var(--code-block-background) !important;
-      border: 1px solid rgba(148, 163, 184, 0.14) !important;
-      border-radius: 10px !important;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-      margin: 1.25rem 0 !important;
-    }
-
-    .markdown-section pre > code {
-      border: none;
-      padding: 1.15rem 1.35rem !important;
-      font-size: 0.86rem !important;
-      line-height: 1.65 !important;
-      background: transparent !important;
-    }
-
-    .docsify-copy-code-button {
-      background: rgba(30, 41, 59, 0.85) !important;
-      color: #cbd5e1 !important;
-      border: 1px solid rgba(148, 163, 184, 0.2) !important;
-      border-radius: 6px !important;
-      font-size: 0.75rem !important;
-      font-weight: 500 !important;
-      padding: 0.3rem 0.65rem !important;
-      top: 0.65rem !important;
-      right: 0.65rem !important;
-      transition: all 0.15s ease !important;
-    }
-
-    .docsify-copy-code-button:hover {
-      background: #6366f1 !important;
-      color: #ffffff !important;
-      border-color: #6366f1 !important;
-    }
-
-    /* Tables & Blockquotes */
-    .markdown-section table {
-      border-radius: 10px;
-      overflow: hidden;
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      display: table;
-      width: 100%;
-    }
-
-    .markdown-section blockquote {
-      border-radius: 0 8px 8px 0;
-      padding: 0.85rem 1.25rem;
-      margin: 1.25rem 0;
-      color: #cbd5e1;
-    }
-
-    /* Sidebar & Search */
-    .sidebar {
-      padding: 0.75rem 0.5rem 2rem !important;
-      backdrop-filter: blur(12px);
-    }
-
-    .sidebar .app-name {
-      padding: 0.5rem 1rem 0.25rem;
-      letter-spacing: -0.01em;
-    }
-
-    .sidebar-nav {
-      padding: 0 0.75rem !important;
-    }
-
-    .sidebar-nav li > a,
-    .sidebar-nav li > p {
-      padding: 0.38rem 0.75rem !important;
-      margin: 2px 0;
-      border-radius: 6px;
-      transition: background 0.15s ease, color 0.15s ease;
-    }
-
-    .sidebar-nav li > a:hover {
-      background: rgba(148, 163, 184, 0.08);
-    }
-
-    .sidebar-nav strong {
-      color: #64748b;
-      font-size: 0.74rem;
       font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      display: block;
-      margin-top: 1rem;
-      margin-bottom: 0.35rem;
+      letter-spacing: -0.02em;
     }
 
-    .sidebar .search {
-      margin: 0.65rem 0.75rem 1.1rem !important;
-      padding: 0 !important;
-      border-bottom: none !important;
-      position: relative !important;
-    }
-
-    .sidebar .search input {
-      background: #111827 !important;
-      border: 1px solid rgba(148, 163, 184, 0.16) !important;
-      border-radius: 8px !important;
-      padding: 0.6rem 0.85rem 0.6rem 2.2rem !important;
-      font-size: 0.86rem !important;
-      color: #f1f5f9 !important;
-      width: 100% !important;
-      box-sizing: border-box !important;
-      transition: all 0.2s ease !important;
-    }
-
-    .sidebar .search input::placeholder {
-      color: #64748b !important;
-    }
-
-    .sidebar .search input:focus {
-      border-color: #818cf8 !important;
-      background: #151f33 !important;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
-      outline: none !important;
-    }
-
-    .sidebar .search .clear-button {
-      right: 0.65rem !important;
-      top: 50% !important;
-      transform: translateY(-50%) !important;
-    }
-
-    .sidebar .search .results-panel {
-      background: #0d1322 !important;
-      border: 1px solid rgba(148, 163, 184, 0.16) !important;
-      border-radius: 8px !important;
-      margin-top: 0.5rem !important;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55) !important;
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
-      background: rgba(99, 102, 241, 0.16);
-      color: #a5b4fc;
-      border: 1px solid rgba(99, 102, 241, 0.35);
-    }
-
-    /* Modern Pagination Cards */
     .docsify-pagination-container {
-      margin-top: 4rem !important;
-      border-top: 1px solid rgba(148, 163, 184, 0.14) !important;
-      padding-top: 2rem !important;
-      display: flex !important;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
+      margin-top: 2.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.15);
     }
 
     .pagination-item {
-      flex: 1 1 240px;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: 10px;
-      padding: 1rem 1.35rem;
-      background: #0b101b;
-      transition: all 0.18s ease;
+      max-width: 45%;
+    }
+
+    .pagination-item a {
       text-decoration: none !important;
     }
 
-    .pagination-item:hover {
-      border-color: rgba(129, 140, 248, 0.6);
-      background: rgba(99, 102, 241, 0.08);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
-    }
-
-    .pagination-item--previous {
-      text-align: left;
-    }
-
-    .pagination-item--next {
-      text-align: right;
-      margin-left: auto;
+    .pagination-item-label {
+      font-size: 0.72rem !important;
+      font-weight: 600 !important;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      opacity: 0.65;
     }
 
     .pagination-item-title {
-      color: #f8fafc;
-      font-weight: 600;
-      font-size: 0.98rem;
-      margin-top: 4px;
-    }
-
-    .pagination-item-subtitle {
-      color: #64748b;
-      font-size: 0.74rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    @media (max-width: 768px) {
-      .markdown-section {
-        padding: 1.75rem 1.25rem 3.5rem !important;
-      }
-
-      .markdown-section h1 {
-        font-size: 1.75rem;
-      }
+      font-size: 0.95rem !important;
+      font-weight: 600 !important;
+      margin-top: 0.15rem;
+      line-height: 1.35 !important;
     }
   </style>
 </head>
 
 <body>
   <div id="app">Loading documentation...</div>
-
   <script>
     window.$docsify = {
       name: 'Native Access Control',
-      repo: 'georgechitechi/native-access-control',
-      homepage: 'README.md',
+      repo: 'https://github.com/georgechitechi/native-access-control',
       loadSidebar: true,
-      autoHeader: false,
       subMaxLevel: 3,
-      executeScript: true,
+      auto2top: true,
+      homepage: 'README.md',
       search: {
         maxAge: 86400000,
         paths: 'auto',
         placeholder: 'Search documentation...',
         noData: 'No results found',
-        depth: 3
+        depth: 4
       },
       copyCode: {
         buttonText: 'Copy',
-        errorText: 'Error',
-        successText: 'Copied'
+        successText: 'Copied!'
+      },
+      darklightTheme: {
+        siteFont: 'Inter',
+        defaultTheme: 'dark',
+        codeFontFamily: 'JetBrains Mono',
+        bodyFontSize: '15px',
+        dark: {
+          accent: '#38bdf8',
+          toogleBackground: '#ffffff',
+          background: '#090d16',
+          textColor: '#e2e8f0',
+          codeTextColor: '#f8fafc',
+          codeBackgroundColor: '#0f172a',
+          borderColor: '#1e293b',
+          blockQuoteColor: '#38bdf8',
+          highlightColor: '#f59e0b',
+          sidebarSublabel: '#94a3b8'
+        },
+        light: {
+          accent: '#0284c7',
+          toogleBackground: '#0f172a',
+          background: '#ffffff',
+          textColor: '#0f172a',
+          codeTextColor: '#0f172a',
+          codeBackgroundColor: '#f8fafc',
+          borderColor: '#e2e8f0',
+          blockQuoteColor: '#0284c7',
+          highlightColor: '#f59e0b',
+          sidebarSublabel: '#64748b'
+        }
       },
       pagination: {
         previousText: 'Previous',
         nextText: 'Next',
         crossChapter: true,
-        // crossChapterText: true
+        crossChapterText: true
       }
     }
   </script>
+  <!-- Docsify Core -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
 
-  <!-- Docsify core & plugins -->
-  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/js/docsify-themeable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+  <!-- Plugins -->
+  <script src="//cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-pagination/dist/docsify-pagination.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/docsify-darklight-theme@latest/dist/index.min.js"></script>
 
   <!-- Prism Syntax Highlighting -->
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-jsx.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-tsx.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-typescript.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-jsx.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/prismjs@1/components/prism-tsx.min.js"></script>
 </body>
 
 </html>
